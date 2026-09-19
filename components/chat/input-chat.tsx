@@ -61,6 +61,15 @@ const InputChat = ({
     }
   };
 
+  // Las automations (entregar una cuenta del pool) van primero: son la acción
+  // que el operador más busca y antes quedaban escondidas abajo de la lista.
+  const ordenarAtajos = (lista: ResponseData[]) =>
+    [...lista].sort((a, b) => {
+      const pesoA = a.type === "automation" ? 0 : 1;
+      const pesoB = b.type === "automation" ? 0 : 1;
+      return pesoA - pesoB;
+    });
+
   // Filtrar respuestas basado en el texto después del "/"
   const filterResponses = (searchText: string) => {
     if (!searchText.startsWith("/")) {
@@ -71,17 +80,20 @@ const InputChat = ({
 
     const shortcutQuery = searchText.slice(1).toLowerCase(); // Remover el "/" inicial
 
-    let filtered: ResponseData[];
-    if (shortcutQuery.length === 0) {
-      filtered = allResponses.slice(0, 5); // Mostrar las primeras 5 si no hay búsqueda
-    } else {
-      filtered = allResponses.filter(response =>
-        response.atajo.toLowerCase().includes(shortcutQuery) ||
-        response.triggers.some(trigger =>
-          trigger.toLowerCase().includes(shortcutQuery)
-        )
-      ).slice(0, 5); // Limitar a 5 resultados
-    }
+    const coincidencias =
+      shortcutQuery.length === 0
+        ? allResponses
+        : allResponses.filter(
+            (response) =>
+              response.atajo.toLowerCase().includes(shortcutQuery) ||
+              response.triggers.some((trigger) =>
+                trigger.toLowerCase().includes(shortcutQuery)
+              ) ||
+              (response.type === "automation" &&
+                (response.action?.plataforma || "").toLowerCase().includes(shortcutQuery))
+          );
+
+    const filtered = ordenarAtajos(coincidencias).slice(0, 8);
 
     setFilteredResponses(filtered);
     setShowShortcuts(filtered.length > 0);
@@ -228,7 +240,9 @@ const InputChat = ({
         >
           <ScrollArea className="max-h-64">
             <div className="p-2">
-              <div className="text-xs text-[#8696a0] mb-2 px-2">Atajos disponibles:</div>
+              <div className="text-xs text-[#8696a0] mb-2 px-2">
+                Atajos disponibles — seguí escribiendo para filtrar (ej: /registro)
+              </div>
               {filteredResponses.map((response, index) => (
                 <div
                   key={response._id}
