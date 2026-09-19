@@ -7,7 +7,7 @@ type ToastActionElement = React.ReactElement
 type ToastProps = React.ComponentPropsWithoutRef<
   React.ElementType
 > & {
-  variant?: "default" | "destructive"
+  variant?: "default" | "destructive" | "success"
   onOpenChange?: (open: boolean) => void
   open?: boolean
 }

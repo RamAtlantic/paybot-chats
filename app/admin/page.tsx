@@ -1,17 +1,21 @@
-"use client";
+"use client"
 
-import { ProtectedRoute } from "@/components/layout/protected-route";
+import { AdminShell } from "@/components/admin/admin-shell"
 
 export default function AdminPage() {
   return (
-    <ProtectedRoute>
-      <div className="h-screen w-full">
+    <AdminShell
+      title="Chats"
+      description="Conversaciones activas del chat externo"
+      fullBleed
+    >
+      <div className="h-[calc(100vh-3.5rem)] w-full overflow-hidden border-t border-border">
         <iframe
           src="/admin/iframe"
-          className="w-full h-full border-none"
-          title="Admin Chat Interface"
+          className="h-full w-full border-none"
+          title="Chat de operación"
         />
       </div>
-    </ProtectedRoute>
-  );
+    </AdminShell>
+  )
 }

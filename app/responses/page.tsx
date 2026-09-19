@@ -1,814 +1,617 @@
 "use client"
 
-import { MessageSquare, Plus, Search, Edit, Trash2, ImageIcon, Type, Power, X, Upload, Loader2 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { ProtectedRoute } from "@/components/layout/protected-route"
+import * as React from "react"
+import Image from "next/image"
+import {
+  ImageIcon,
+  Pencil,
+  Plus,
+  Power,
+  Search,
+  Type,
+  Upload,
+  X,
+  Zap,
+} from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { AdminShell } from "@/components/admin/admin-shell"
+import {
+  EmptyState,
+  ErrorState,
+  Field,
+  LoadingRows,
+  Spinner,
+  Toolbar,
+} from "@/components/admin/kit"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { ResponsesService, ResponseData, CreateResponseData, UpdateResponseData } from "@/services/responses-service"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/hooks/use-toast"
 import { uploadImageToR2 } from "@/lib/upload-cdn"
-import * as THREE from "three"
-import Image from "next/image"
-import { VantaBackgroundLayout } from "@/components/layout/vanta"
+import { cn } from "@/lib/utils"
+import {
+  CreateResponseData,
+  ResponseData,
+  ResponsesService,
+  UpdateResponseData,
+} from "@/services/responses-service"
 
-interface VantaEffect {
-  destroy: () => void;
-}
-
-interface VantaWavesOptions {
-  el: HTMLDivElement;
-  THREE: typeof THREE;
-  mouseControls: boolean;
-  touchControls: boolean;
-  gyroControls: boolean;
-  minHeight: number;
-  minWidth: number;
-  scale: number;
-  scaleMobile: number;
-  color: number;
-  shininess: number;
-  waveHeight: number;
-  waveSpeed: number;
-  zoom: number;
-}
-
-declare global {
-  interface Window {
-    VANTA: {
-      WAVES: (options: VantaWavesOptions) => VantaEffect;
-    };
-    THREE: typeof THREE;
-  }
-}
-// Type definitions
-// "automation" son las respuestas que entregan una cuenta del pool: se editan
-// desde acá (status, atajo, triggers) pero su acción se configura en el seed.
 type ResponseType = "text" | "image" | "mixed" | "automation"
+type FiltroTipo = "todos" | "text" | "image" | "automation"
+type FiltroEstado = "todos" | "activas" | "inactivas"
 
+const FORM_VACIO = {
+  atajo: "",
+  text: "",
+  image: "",
+  type: "text" as ResponseType,
+  status: true,
+  triggers: [] as string[],
+}
+
+function TipoBadge({ type }: { type: ResponseType }) {
+  if (type === "automation")
+    return (
+      <Badge variant="default">
+        <Zap /> automation
+      </Badge>
+    )
+  if (type === "image")
+    return (
+      <Badge variant="info">
+        <ImageIcon /> imagen
+      </Badge>
+    )
+  return (
+    <Badge variant="secondary">
+      <Type /> texto
+    </Badge>
+  )
+}
 
 export default function ResponsesPage() {
-  const vantaRef = useRef<HTMLDivElement>(null)
-  const vantaEffect = useRef<VantaEffect | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [activeTab, setActiveTab] = useState("list")
-  const [currentTrigger, setCurrentTrigger] = useState("")
   const queryClient = useQueryClient()
+  const [busqueda, setBusqueda] = React.useState("")
+  const [tipo, setTipo] = React.useState<FiltroTipo>("todos")
+  const [estado, setEstado] = React.useState<FiltroEstado>("todos")
+  const [abierto, setAbierto] = React.useState(false)
+  const [editando, setEditando] = React.useState<ResponseData | null>(null)
+  const [formData, setFormData] = React.useState(FORM_VACIO)
+  const [triggerActual, setTriggerActual] = React.useState("")
+  const [subiendo, setSubiendo] = React.useState(false)
+  const fileRef = React.useRef<HTMLInputElement>(null)
 
-  // Form state
-  const [formData, setFormData] = useState({
-    atajo: "",
-    text: "",
-    image: "",
-    type: "text" as ResponseType,
-    status: true,
-    triggers: [] as string[],
+  const { data: responses = [], isLoading, error, refetch } = useQuery({
+    queryKey: ["responses"],
+    queryFn: () => ResponsesService.getResponses(),
+    staleTime: 1000 * 60 * 5,
   })
 
-  // React Query hooks
-  const { data: responses = [], isLoading: isLoadingResponses, error: responsesError } = useQuery({
-    queryKey: ["responses", searchTerm],
-    queryFn: () => ResponsesService.getResponses(searchTerm || undefined),
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  })
+  const invalidar = () => queryClient.invalidateQueries({ queryKey: ["responses"] })
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateResponseData) => ResponsesService.createResponse(data),
+    mutationFn: (payload: CreateResponseData) => ResponsesService.createResponse(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["responses"] })
-      toast({
-        title: "Éxito",
-        description: "Respuesta creada correctamente",
-      })
+      invalidar()
+      toast({ title: "Respuesta creada", variant: "success" })
+      cerrar()
     },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      })
-    },
+    onError: (e: Error) =>
+      toast({ title: "No se pudo crear", description: e.message, variant: "destructive" }),
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateResponseData }) =>
-      ResponsesService.updateResponse(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["responses"] })
-      toast({
-        title: "Éxito",
-        description: "Respuesta actualizada correctamente",
-      })
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      })
-    },
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateResponseData }) =>
+      ResponsesService.updateResponse(id, payload),
+    onSuccess: () => invalidar(),
+    onError: (e: Error) =>
+      toast({ title: "No se pudo actualizar", description: e.message, variant: "destructive" }),
   })
 
-  // Estado para manejo de imagen
-  const [isUploadingImage, setIsUploadingImage] = useState(false)
-  const [isProcessingUpload, setIsProcessingUpload] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cerrar = () => {
+    setAbierto(false)
+    setEditando(null)
+    setFormData(FORM_VACIO)
+    setTriggerActual("")
+  }
 
-  // Estado para modo edición
-  const [editingResponse, setEditingResponse] = useState<ResponseData | null>(null)
+  const abrirNueva = () => {
+    setEditando(null)
+    setFormData(FORM_VACIO)
+    setAbierto(true)
+  }
 
-  useEffect(() => {
-    // Load Three.js
-    const threeScript = document.createElement("script")
-    threeScript.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"
-    threeScript.async = true
-    document.body.appendChild(threeScript)
+  const abrirEdicion = (r: ResponseData) => {
+    setEditando(r)
+    setFormData({
+      atajo: r.atajo,
+      text: r.text || "",
+      image: r.image || "",
+      type: r.type,
+      status: r.status,
+      triggers: [...(r.triggers || [])],
+    })
+    setTriggerActual("")
+    setAbierto(true)
+  }
 
-    threeScript.onload = () => {
-      // Load Vanta.js WAVES effect
-      const vantaScript = document.createElement("script")
-      vantaScript.src = "https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.waves.min.js"
-      vantaScript.async = true
-      document.body.appendChild(vantaScript)
-
-      vantaScript.onload = () => {
-        if (vantaRef.current && !vantaEffect.current) {
-          vantaEffect.current = (window.VANTA as unknown as { WAVES: (options: VantaWavesOptions) => VantaEffect }).WAVES({
-            el: vantaRef.current,
-            THREE: window.THREE,
-            mouseControls: true,
-            touchControls: true,
-            gyroControls: false,
-            minHeight: 200.0,
-            minWidth: 200.0,
-            scale: 1.0,
-            scaleMobile: 1.0,
-            color: 0x0a0a0a,
-            shininess: 60.0,
-            waveHeight: 15.0,
-            waveSpeed: 0.6,
-            zoom: 0.75,
-          })
-        }
-      
-      }
-    }
-
-    return () => {
-      if (vantaEffect.current) {
-        vantaEffect.current.destroy()
-      }
-    }
-  }, [])
-
-  // Service methods
-  const handleSaveResponse = async () => {
-    if (editingResponse) {
-      // Update existing response
-      const updateData = {
+  const guardar = async () => {
+    const esAutomation = formData.type === "automation"
+    if (editando) {
+      const payload: UpdateResponseData = {
         atajo: formData.atajo,
         text: formData.text,
         image: formData.image,
-        type: formData.type,
         status: formData.status,
         triggers: formData.triggers,
       }
-
-      await updateMutation.mutateAsync({ id: editingResponse._id, data: updateData })
-
-      // Reset edit mode
-      setEditingResponse(null)
+      if (!esAutomation) payload.type = formData.type as "text" | "image" | "mixed"
+      await updateMutation.mutateAsync({ id: editando._id, payload })
+      toast({ title: "Respuesta actualizada", variant: "success" })
+      cerrar()
     } else {
-      // Create new response
-      const responseData: CreateResponseData = {
+      await createMutation.mutateAsync({
         atajo: formData.atajo,
         text: formData.text,
         image: formData.image,
-        type: formData.type,
+        type: formData.type as "text" | "image" | "mixed",
         status: formData.status,
         triggers: formData.triggers,
-      }
-
-      await createMutation.mutateAsync(responseData)
-    }
-
-    // Reset form on success
-    setFormData({
-      atajo: "",
-      text: "",
-      image: "",
-      type: "text",
-      status: true,
-      triggers: [],
-    })
-    setCurrentTrigger("")
-    setActiveTab("list")
-  }
-
-  const handleUpdateResponse = async (id: string, data: UpdateResponseData) => {
-    await updateMutation.mutateAsync({ id, data })
-  }
-
-  const handleDeleteResponse = async (id: string) => {
-    // For delete, we'll use update with status: false since the API doesn't have a delete endpoint
-    await updateMutation.mutateAsync({ id, data: { status: false } })
-  }
-
-  const handleToggleStatus = async (id: string, status: boolean) => {
-    await handleUpdateResponse(id, { status })
-  }
-
-  // Trigger management functions
-  const handleAddTrigger = () => {
-    const trigger = currentTrigger.trim()
-    if (trigger && !formData.triggers.includes(trigger)) {
-      setFormData({
-        ...formData,
-        triggers: [...formData.triggers, trigger]
       })
-      setCurrentTrigger("")
     }
   }
 
-  const handleRemoveTrigger = (triggerToRemove: string) => {
-    setFormData({
-      ...formData,
-      triggers: formData.triggers.filter(trigger => trigger !== triggerToRemove)
-    })
+  const toggleStatus = (r: ResponseData, status: boolean) =>
+    updateMutation.mutate({ id: r._id, payload: { status } })
+
+  const agregarTrigger = () => {
+    const t = triggerActual.trim()
+    if (!t || formData.triggers.includes(t)) return
+    setFormData({ ...formData, triggers: [...formData.triggers, t] })
+    setTriggerActual("")
   }
 
-  const handleTriggerKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      handleAddTrigger()
-    }
-  }
-
-  // Image upload functions
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    // Evitar procesamiento múltiple
-    if (isProcessingUpload) return
-
-    const file = event.target.files?.[0]
+  const subirImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
     if (!file) return
-
-    setIsProcessingUpload(true)
-
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Archivo inválido", description: "Tiene que ser una imagen", variant: "destructive" })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Imagen muy pesada", description: "Máximo 5MB", variant: "destructive" })
+      return
+    }
     try {
-      // Validar tipo de archivo
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Error",
-          description: "Por favor selecciona un archivo de imagen válido",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Validar tamaño (máximo 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "Error",
-          description: "La imagen no puede superar los 5MB",
-          variant: "destructive",
-        })
-        return
-      }
-
-      setIsUploadingImage(true)
-
-      const uploadResult = await uploadImageToR2(file)
-
-      // Usar la URL original de la imagen subida con el CDN
-      setFormData({
-        ...formData,
-        image: `${process.env.NEXT_PUBLIC_PUBLIC_CDN_URL || ""}${uploadResult.originalUrl}`
-      })
-
+      setSubiendo(true)
+      const result = await uploadImageToR2(file)
+      setFormData((prev) => ({
+        ...prev,
+        image: `${process.env.NEXT_PUBLIC_PUBLIC_CDN_URL || ""}${result.originalUrl}`,
+      }))
+      toast({ title: "Imagen subida", variant: "success" })
+    } catch (err) {
       toast({
-        title: "Éxito",
-        description: "Imagen subida correctamente",
-      })
-    } catch (error) {
-      console.error("Error uploading image:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Error al subir la imagen",
+        title: "Error al subir",
+        description: err instanceof Error ? err.message : "Intentá de nuevo",
         variant: "destructive",
       })
     } finally {
-      setIsUploadingImage(false)
-      setIsProcessingUpload(false)
-
-      // Limpiar el input file después de un pequeño delay para evitar loops
-      setTimeout(() => {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ""
-        }
-      }, 100)
+      setSubiendo(false)
+      if (fileRef.current) fileRef.current.value = ""
     }
   }
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click()
-  }
+  const filtradas = responses.filter((r) => {
+    const texto = `${r.atajo} ${r.text || ""} ${(r.triggers || []).join(" ")}`.toLowerCase()
+    if (busqueda && !texto.includes(busqueda.toLowerCase())) return false
+    if (tipo !== "todos" && r.type !== tipo) return false
+    if (estado === "activas" && !r.status) return false
+    if (estado === "inactivas" && r.status) return false
+    return true
+  })
 
-  // Edición functions
-  const handleEditResponse = (response: ResponseData) => {
-    setEditingResponse(response)
-    setFormData({
-      atajo: response.atajo,
-      text: response.text || "",
-      image: response.image || "",
-      type: response.type,
-      status: response.status,
-      triggers: [...response.triggers],
-    })
-    setCurrentTrigger("")
-    setActiveTab("create")
-  }
-
-  const handleCancelEdit = () => {
-    setEditingResponse(null)
-    setFormData({
-      atajo: "",
-      text: "",
-      image: "",
-      type: "text",
-      status: true,
-      triggers: [],
-    })
-    setCurrentTrigger("")
-    setActiveTab("list")
-  }
-
-  // Loading state
-  if (isLoadingResponses) {
-    return (
-      <ProtectedRoute>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Cargando respuestas...</p>
-          </div>
-        </div>
-      </ProtectedRoute>
-    )
-  }
-
-  // Error state
-  if (responsesError) {
-    return (
-      <ProtectedRoute>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-red-500 mb-4">Error al cargar las respuestas</div>
-            <p className="text-muted-foreground">{responsesError.message}</p>
-            <Button
-              onClick={() => queryClient.invalidateQueries({ queryKey: ["responses"] })}
-              className="mt-4"
-            >
-              Reintentar
-            </Button>
-          </div>
-        </div>
-      </ProtectedRoute>
-    )
-  }
+  const activas = responses.filter((r) => r.status).length
+  const automations = responses.filter((r) => r.type === "automation").length
+  const guardando = createMutation.isPending || updateMutation.isPending
 
   return (
-    <ProtectedRoute>
-      <VantaBackgroundLayout>
-    <div ref={vantaRef} className="relative min-h-screen w-full overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-transparent to-primary/10 pointer-events-none z-0" />
+    <AdminShell
+      title="Respuestas"
+      description={`${responses.length} atajos · ${activas} activos · ${automations} automations`}
+      actions={
+        <Button size="sm" onClick={abrirNueva}>
+          <Plus />
+          <span className="hidden sm:inline">Nueva respuesta</span>
+        </Button>
+      }
+    >
+      <Card className="overflow-hidden p-0">
+        <Toolbar>
+          <Field label="Buscar" className="flex-1">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle-foreground" />
+              <Input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="atajo, texto o trigger"
+                className="h-8 pl-8"
+              />
+            </div>
+          </Field>
+          <Field label="Tipo">
+            <Select value={tipo} onValueChange={(v) => setTipo(v as FiltroTipo)}>
+              <SelectTrigger size="sm" className="w-[9rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="text">Texto</SelectItem>
+                <SelectItem value="image">Imagen</SelectItem>
+                <SelectItem value="automation">Automation</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Estado">
+            <Select value={estado} onValueChange={(v) => setEstado(v as FiltroEstado)}>
+              <SelectTrigger size="sm" className="w-[8.5rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="activas">Activas</SelectItem>
+                <SelectItem value="inactivas">Inactivas</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </Toolbar>
 
-      <div className="relative z-10">
-        {/* Main Content */}
-        <main className="container mx-auto px-4 py-12">
-          <div className="max-w-6xl mx-auto">
-            {/* Title Section */}
-            <div className="text-center mb-12">
-              <h1 className="text-4xl font-bold mb-3 text-balance bg-gradient-to-r from-primary via-emerald-400 to-primary bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(37,211,102,0.5)]">
-                Respuestas Automáticas
-              </h1>
-              <p className="text-emerald-300/90 text-lg text-pretty drop-shadow-[0_0_8px_rgba(16,185,129,0.4)]">
-                Gestiona tu biblioteca de respuestas frecuentes
+        {isLoading ? (
+          <LoadingRows rows={8} cols={5} />
+        ) : error ? (
+          <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
+        ) : filtradas.length === 0 ? (
+          <EmptyState
+            icon={Zap}
+            title="No hay respuestas con ese filtro"
+            action={
+              <Button size="sm" onClick={abrirNueva}>
+                <Plus /> Nueva respuesta
+              </Button>
+            }
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Atajo</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="w-[32%]">Contenido</TableHead>
+                <TableHead>Triggers</TableHead>
+                <TableHead>Etapa</TableHead>
+                <TableHead>Activa</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtradas.map((r) => (
+                <TableRow key={r._id} className={cn(!r.status && "opacity-60")}>
+                  <TableCell className="font-mono text-[12.5px] font-medium">
+                    <span className="text-subtle-foreground">/</span>
+                    {r.atajo}
+                  </TableCell>
+                  <TableCell>
+                    <TipoBadge type={r.type} />
+                  </TableCell>
+                  <TableCell className="max-w-0">
+                    {r.type === "image" && r.image ? (
+                      <div className="flex items-center gap-2">
+                        <Image
+                          src={r.image}
+                          alt=""
+                          width={36}
+                          height={28}
+                          className="rounded border border-border object-cover"
+                          unoptimized
+                        />
+                        <span className="truncate text-[12px] text-subtle-foreground">imagen</span>
+                      </div>
+                    ) : (
+                      <span className="block truncate text-muted-foreground">
+                        {r.text || "—"}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="max-w-[14rem]">
+                    <div className="flex flex-wrap gap-1">
+                      {(r.triggers || []).slice(0, 3).map((t, i) => (
+                        <Badge key={i} variant="outline">
+                          {t}
+                        </Badge>
+                      ))}
+                      {(r.triggers || []).length > 3 && (
+                        <Badge variant="outline">+{r.triggers.length - 3}</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-[12px] text-subtle-foreground">
+                    {r.funnel?.etapa || "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Switch
+                      checked={r.status}
+                      onCheckedChange={(checked) => toggleStatus(r, checked)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      title="Editar"
+                      onClick={() => abrirEdicion(r)}
+                    >
+                      <Pencil />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      {/* -------------------------------------------------------- formulario */}
+      <Dialog open={abierto} onOpenChange={(v) => (v ? setAbierto(true) : cerrar())}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editando ? "Editar respuesta" : "Nueva respuesta"}
+              {formData.type === "automation" && (
+                <Badge variant="default">
+                  <Zap /> automation
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="atajo">Atajo</Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-subtle-foreground">
+                  /
+                </span>
+                <Input
+                  id="atajo"
+                  placeholder="datos-pago"
+                  className="pl-6 font-mono"
+                  value={formData.atajo}
+                  onChange={(e) =>
+                    setFormData({ ...formData, atajo: e.target.value.replace(/^\//, "") })
+                  }
+                />
+              </div>
+              <p className="text-[11px] text-subtle-foreground">
+                El operador lo dispara escribiendo “/” en el chat
               </p>
             </div>
 
-            {/* Main Card */}
-            <Card className="border-border/50 bg-card/60 backdrop-blur-xl shadow-[0_0_30px_rgba(37,211,102,0.3)]">
-              <CardHeader>
-                <CardTitle className="text-2xl bg-gradient-to-r from-emerald-300 to-primary bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(37,211,102,0.5)] flex items-center gap-2">
-                  <MessageSquare className="h-6 w-6 text-primary" />
-                  Biblioteca de Respuestas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="list">Lista</TabsTrigger>
-                    <TabsTrigger value="create">{editingResponse ? "Editar" : "Crear"}</TabsTrigger>
-                  </TabsList>
+            <div className="space-y-1.5">
+              <Label htmlFor="tipo">Tipo</Label>
+              {formData.type === "automation" ? (
+                <div className="flex h-9 items-center rounded-md border border-border bg-surface-2/40 px-3 text-[13px] text-muted-foreground">
+                  Entrega automática de cuenta
+                </div>
+              ) : (
+                <Select
+                  value={formData.type}
+                  onValueChange={(v) => setFormData({ ...formData, type: v as ResponseType })}
+                >
+                  <SelectTrigger id="tipo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">Texto</SelectItem>
+                    <SelectItem value="image">Imagen</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
 
-                  {/* List Tab */}
-                  <TabsContent value="list" className="space-y-4">
-                    {/* Search Bar */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por atajo, triggers o contenido..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10 border-primary/30 focus-visible:border-primary focus-visible:shadow-[0_0_15px_rgba(37,211,102,0.3)] transition-all"
-                      />
-                    </div>
-
-                    {/* Table */}
-                    <div className="rounded-lg border border-primary/30 overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-primary/30 hover:bg-primary/5">
-                            <TableHead className="text-emerald-200/90">Atajo</TableHead>
-                            <TableHead className="text-emerald-200/90">Tipo</TableHead>
-                            <TableHead className="text-emerald-200/90">Contenido</TableHead>
-                            <TableHead className="text-emerald-200/90">Triggers</TableHead>
-                            <TableHead className="text-emerald-200/90">Estado</TableHead>
-                            <TableHead className="text-emerald-200/90 text-right">Acciones</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {responses.map((response) => (
-                            <TableRow
-                              key={response._id}
-                              className="border-primary/20 hover:bg-primary/5 transition-colors"
-                            >
-                              <TableCell><span>/{<span className="italic">{response.atajo}</span>}</span></TableCell>
-                              <TableCell>
-                                <Badge variant={response.type === "text" ? "secondary" : "outline"} className="gap-1">
-                                  {response.type === "text" ? (
-                                    <Type className="h-3 w-3" />
-                                  ) : (
-                                    <ImageIcon className="h-3 w-3" />
-                                  )}
-                                  {response.type}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="max-w-xs truncate">
-                                {response.type === "text" ? (
-                                  <span className="text-sm">{response.text}</span>
-                                ) : response.image ? (
-                                  <div className="flex items-center gap-2">
-                                    <Image
-                                      src={response.image}
-                                      alt="Preview"
-                                      width={40}
-                                      height={30}
-                                      className="rounded border object-cover"
-                                      onError={(e) => {
-                                        e.currentTarget.src = "/placeholder.svg?height=30&width=40"
-                                      }}
-                                    />
-                                    
-                                  </div>
-                                ) : (
-                                  <span className="text-sm text-muted-foreground">Imagen adjunta</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                                {response.triggers.join(", ")}
-                              </TableCell>
-                              <TableCell>
-                                <Switch
-                                  checked={response.status}
-                                  onCheckedChange={(checked) => handleToggleStatus(response._id, checked)}
-                                  className="data-[state=checked]:shadow-[0_0_15px_rgba(37,211,102,0.6)]"
-                                />
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
-                                    onClick={() => handleEditResponse(response)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                                    onClick={() => handleDeleteResponse(response._id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-
-                    {responses.length === 0 && (
-                      <div className="text-center py-12">
-                        <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-muted-foreground">No se encontraron respuestas</p>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  {/* Create Tab */}
-                  <TabsContent value="create" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Atajo */}
-                      <div className="space-y-3">
-                        
-                        <Label
-                          htmlFor="atajo"
-                          className="text-emerald-200/90 drop-shadow-[0_0_6px_rgba(16,185,129,0.3)]"
-                        >
-                          Atajo
-                        </Label>
-                        <Input
-                          id="atajo"
-                          placeholder="/"
-                          value={formData.atajo}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            // No permitir solo "/" como valor
-                            if (value === "/") return;
-                            setFormData({ ...formData, atajo: value });
-                          }}
-                          className="border-primary/30 focus-visible:border-primary focus-visible:shadow-[0_0_15px_rgba(37,211,102,0.3)] transition-all font-bold"
-                        />
-                        <p className="text-xs text-muted-foreground">Comando para activar la respuesta</p>
-                      </div>
-
-                      {/* Type */}
-                      <div className="space-y-3">
-                        <Label
-                          htmlFor="type"
-                          className="text-emerald-200/90 drop-shadow-[0_0_6px_rgba(16,185,129,0.3)]"
-                        >
-                          Tipo
-                        </Label>
-                        <Select
-                          value={formData.type}
-                          onValueChange={(value: ResponseType) => setFormData({ ...formData, type: value })}
-                        >
-                          <SelectTrigger className="border-primary/30 focus:border-primary focus:shadow-[0_0_15px_rgba(37,211,102,0.3)] transition-all">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="text">
-                              <div className="flex items-center gap-2">
-                                <Type className="h-4 w-4" />
-                                Texto
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="image">
-                              <div className="flex items-center gap-2">
-                                <ImageIcon className="h-4 w-4" />
-                                Imagen
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Triggers */}
-                      <div className="space-y-3 md:col-span-2">
-                        <Label
-                          className="text-emerald-200/90 drop-shadow-[0_0_6px_rgba(16,185,129,0.3)]"
-                        >
-                          Triggers
-                        </Label>
-
-                        {/* Display current triggers as badges */}
-                        {formData.triggers.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {formData.triggers.map((trigger, index) => (
-                              <Badge
-                                key={index}
-                                variant="secondary"
-                                className="flex items-center gap-1 bg-primary/20 text-primary border-primary/30 hover:bg-primary/30 transition-colors"
-                              >
-                                {trigger}
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveTrigger(trigger)}
-                                  className="ml-1 hover:bg-primary/40 rounded-full p-0.5 transition-colors"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Input for new triggers */}
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Escribe un trigger y presiona Enter"
-                            value={currentTrigger}
-                            onChange={(e) => setCurrentTrigger(e.target.value)}
-                            onKeyPress={handleTriggerKeyPress}
-                            className="border-primary/30 focus-visible:border-primary focus-visible:shadow-[0_0_15px_rgba(37,211,102,0.3)] transition-all"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleAddTrigger}
-                            disabled={!currentTrigger.trim()}
-                            className="border-primary/30 hover:border-primary hover:bg-primary/10 transition-all"
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground">
-                          Palabras clave que activarán esta respuesta automática
-                        </p>
-                      </div>
-
-                      {/* Content based on type */}
-                      {formData.type === "text" ? (
-                        <div className="space-y-3 md:col-span-2">
-                          <Label
-                            htmlFor="text"
-                            className="text-emerald-200/90 drop-shadow-[0_0_6px_rgba(16,185,129,0.3)]"
-                          >
-                            Texto
-                          </Label>
-                          <Textarea
-                            id="text"
-                            placeholder="Escribe tu respuesta automática aquí..."
-                            rows={6}
-                            value={formData.text}
-                            onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-                            className="border-primary/30 focus-visible:border-primary focus-visible:shadow-[0_0_15px_rgba(37,211,102,0.3)] transition-all resize-none"
-                          />
-                        </div>
-                      ) : (
-                        <div className="space-y-3 md:col-span-2 flex  items-center justify-between">
-                          <div>
-
-                          
-                          <Label className="text-emerald-200/90 drop-shadow-[0_0_6px_rgba(16,185,129,0.3)]">
-                            Imagen
-                          </Label>
-
-                          {/* Upload button */}
-                          <div className="flex items-center gap-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={triggerFileInput}
-                              disabled={isUploadingImage}
-                              className="border-primary/30 hover:border-primary hover:bg-primary/10 transition-all"
-                            >
-                              {isUploadingImage ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Subiendo...
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="h-4 w-4 mr-2" />
-                                  Seleccionar imagen
-                                </>
-                              )}
-                            </Button>
-                            {formData.image && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setFormData({ ...formData, image: "" })}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                          </div>
-                          <div>
-
-                         
-
-                          {/* Hidden file input */}
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="hidden"
-                          />
-                          {formData.image && (
-                            <div className="mt-4 rounded-lg overflow-hidden border border-primary/30 max-w-[300px]">
-                              <Image
-                                key={formData.image} // Force re-render when image changes
-                                src={formData.image}
-                                alt="Preview"
-                                width={300}
-                                height={100}
-                                className="w-full h-auto object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.src = "/placeholder.svg?height=300&width=500"
-                                }}
-                              />
-                            </div>
-                          )}
-
-                          {!formData.image && (  
-                          <p className="text-xs text-muted-foreground">
-                            Formatos soportados: JPG, PNG, GIF, WebP. Tamaño máximo: 5MB
-                          </p>
-                          )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Status */}
-                      <div className="space-y-3 md:col-span-2">
-                        <div className="flex items-center justify-between p-4 rounded-lg border border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary hover:shadow-[0_0_15px_rgba(37,211,102,0.3)] transition-all">
-                          <div className="space-y-1">
-                            <Label
-                              htmlFor="status"
-                              className="text-emerald-200/90 drop-shadow-[0_0_6px_rgba(16,185,129,0.3)] cursor-pointer flex items-center gap-2"
-                            >
-                              <Power className="h-4 w-4 text-primary" />
-                              Estado
-                            </Label>
-                            <p className="text-sm text-muted-foreground">{formData.status ? "Activa" : "Inactiva"}</p>
-                          </div>
-                          <Switch
-                            id="status"
-                            checked={formData.status}
-                            onCheckedChange={(checked) => setFormData({ ...formData, status: checked })}
-                            className="data-[state=checked]:shadow-[0_0_15px_rgba(37,211,102,0.6)]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                      <Button
-                        variant="outline"
-                        className="flex-1 border-primary/50 hover:border-primary hover:bg-primary/10 hover:shadow-[0_0_15px_rgba(37,211,102,0.4)] transition-all bg-transparent"
-                        onClick={editingResponse ? handleCancelEdit : () => {
+            {/* triggers */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Triggers</Label>
+              {formData.triggers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {formData.triggers.map((t) => (
+                    <Badge key={t} variant="default" className="pr-1">
+                      {t}
+                      <button
+                        type="button"
+                        onClick={() =>
                           setFormData({
-                            atajo: "",
-                            text: "",
-                            image: "",
-                            type: "text",
-                            status: true,
-                            triggers: [],
+                            ...formData,
+                            triggers: formData.triggers.filter((x) => x !== t),
                           })
-                          setCurrentTrigger("")
-                          setActiveTab("list")
-                        }}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        className="flex-1 bg-primary hover:bg-primary/90 hover:shadow-[0_0_25px_rgba(37,211,102,0.6)] transition-all"
-                        onClick={handleSaveResponse}
-                        disabled={createMutation.isPending || updateMutation.isPending}
-                      >
-                        {(createMutation.isPending || updateMutation.isPending) ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        ) : (
-                          editingResponse ? <Edit className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />
-                        )}
-                        {(createMutation.isPending || updateMutation.isPending)
-                          ? (editingResponse ? "Actualizando..." : "Creando...")
-                          : (editingResponse ? "Actualizar Respuesta" : "Crear Respuesta")
                         }
+                        className="ml-0.5 rounded-[4px] p-0.5 transition-colors hover:bg-primary/25"
+                      >
+                        <X className="size-2.5" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="palabra clave + Enter"
+                  value={triggerActual}
+                  onChange={(e) => setTriggerActual(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      agregarTrigger()
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  onClick={agregarTrigger}
+                  disabled={!triggerActual.trim()}
+                >
+                  <Plus />
+                </Button>
+              </div>
+            </div>
+
+            {/* contenido */}
+            {formData.type === "image" ? (
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Imagen</Label>
+                <div className="flex flex-wrap items-start gap-4">
+                  <div className="space-y-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => fileRef.current?.click()}
+                      disabled={subiendo}
+                    >
+                      {subiendo ? (
+                        <>
+                          <Spinner /> Subiendo…
+                        </>
+                      ) : (
+                        <>
+                          <Upload /> Seleccionar imagen
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-[11px] text-subtle-foreground">JPG, PNG, GIF o WebP · 5MB</p>
+                  </div>
+                  {formData.image && (
+                    <div className="relative">
+                      <Image
+                        src={formData.image}
+                        alt="Preview"
+                        width={200}
+                        height={120}
+                        className="rounded-md border border-border object-cover"
+                        unoptimized
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="absolute right-1 top-1 bg-background/80 hover:text-danger"
+                        onClick={() => setFormData({ ...formData, image: "" })}
+                      >
+                        <X />
                       </Button>
                     </div>
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
+                  )}
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={subirImagen}
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="text">
+                  {formData.type === "automation" ? "Mensaje que acompaña la entrega" : "Texto"}
+                </Label>
+                <Textarea
+                  id="text"
+                  rows={6}
+                  placeholder="Escribí la respuesta…"
+                  value={formData.text}
+                  onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                />
+              </div>
+            )}
+
+            {/* estado */}
+            <div className="sm:col-span-2">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-2/40 px-4 py-3">
+                <div className="flex items-center gap-2.5">
+                  <Power
+                    className={cn(
+                      "size-4",
+                      formData.status ? "text-primary" : "text-subtle-foreground"
+                    )}
+                  />
+                  <div>
+                    <p className="text-[13px] font-medium">
+                      {formData.status ? "Activa" : "Inactiva"}
+                    </p>
+                    <p className="text-[12px] text-subtle-foreground">
+                      Solo las activas aparecen en el selector del chat
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={formData.status}
+                  onCheckedChange={(checked) => setFormData({ ...formData, status: checked })}
+                />
+              </div>
+            </div>
           </div>
-        </main>
-      </div>
-      </div>
-    </VantaBackgroundLayout>
-    </ProtectedRoute>
-  );
+
+          <DialogFooter>
+            <Button variant="secondary" size="sm" onClick={cerrar}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={guardar} disabled={guardando || !formData.atajo.trim()}>
+              {guardando ? (
+                <>
+                  <Spinner /> Guardando…
+                </>
+              ) : editando ? (
+                <>
+                  <Pencil /> Guardar cambios
+                </>
+              ) : (
+                <>
+                  <Plus /> Crear respuesta
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AdminShell>
+  )
 }
