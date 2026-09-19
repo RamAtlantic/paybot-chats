@@ -24,7 +24,7 @@ export interface CreateResponseData {
   atajo: string
   text: string
   image?: string
-  type: "text" | "image" | "mixed"
+  type: "text" | "image" | "mixed" | "automation"
   status?: boolean
   triggers?: string[]
 }
@@ -33,7 +33,7 @@ export interface UpdateResponseData {
   atajo?: string
   text?: string
   image?: string
-  type?: "text" | "image" | "mixed"
+  type?: "text" | "image" | "mixed" | "automation"
   status?: boolean
   triggers?: string[]
 }

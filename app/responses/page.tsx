@@ -52,7 +52,9 @@ declare global {
   }
 }
 // Type definitions
-type ResponseType = "text" | "image" | "mixed"
+// "automation" son las respuestas que entregan una cuenta del pool: se editan
+// desde acá (status, atajo, triggers) pero su acción se configura en el seed.
+type ResponseType = "text" | "image" | "mixed" | "automation"
 
 
 export default function ResponsesPage() {
