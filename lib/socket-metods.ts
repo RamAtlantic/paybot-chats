@@ -164,6 +164,9 @@ export function sendChatMessage(data: SendChatMessageData) {
       userId: connectedUser._id,
       type: "text", // Tipo de mensaje de texto
       read: isAdmin ? true : false, // Los mensajes de admin se envían como leídos
+      // Los mensajes del operador viajan con el teléfono del jugador como
+      // username, así que sin esta marca la API no puede distinguirlos.
+      sender: isAdmin ? "admin" : "user",
       tempMessageId: tempMessageId, // Incluir ID temporal para matching
     });
 
@@ -227,6 +230,7 @@ export async function sendWelcomeMessage(data: {
         userId: adminUser._id,
         type: "text",
         welcome: true,
+        sender: "admin",
       });
     } catch (error) {
       console.error("Error obteniendo mensaje de bienvenida:", error);
@@ -245,6 +249,7 @@ export async function sendWelcomeMessage(data: {
         userId: adminUser._id,
         type: "text",
         welcome: true,
+        sender: "admin",
       });
     }
   };
@@ -299,6 +304,7 @@ export function sendImageMessage(data: SendImageMessageData) {
         userId: connectedUser._id,
         type: "image", // Tipo de mensaje
         read: isAdmin ? true : false, // Los mensajes de admin se envían como leídos
+        sender: isAdmin ? "admin" : "user",
       });
     } catch (error) {
       console.error("Error al subir imagen:", error);

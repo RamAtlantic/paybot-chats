@@ -68,4 +68,22 @@ export class ChatActionsService {
   static paymentInfo(roomId: string) {
     return postear<{ ok: boolean; mensaje: string }>("/payment-info", { roomId })
   }
+
+  /**
+   * Atajo que el operador dispara a mano y sale como mensaje del bot (la
+   * acreditación, por ejemplo). Va por el route handler del propio front, que
+   * es el que agrega la clave: este endpoint no es público.
+   */
+  static async operatorMessage(roomId: string, responseId: string, sentBy?: string) {
+    const res = await fetch("/api/bot-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomId, responseId, sentBy }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new ChatActionError(data.error || `Error ${res.status}`, res.status, data.code)
+    }
+    return data as { ok: boolean; atajo: string; mensaje: string }
+  }
 }
