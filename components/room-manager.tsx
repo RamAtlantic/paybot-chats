@@ -592,14 +592,8 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
                     <SelectItem value="all" className="text-[#e9edef] focus:bg-[#3b4a54] focus:text-[#e9edef]">
                       Todos
                     </SelectItem>
-                    <SelectItem value="ganamos365" className="text-[#e9edef] focus:bg-[#3b4a54] focus:text-[#e9edef]">
-                      ganamos365
-                    </SelectItem>
-                    <SelectItem value="entucasa" className="text-[#e9edef] focus:bg-[#3b4a54] focus:text-[#e9edef]">
-                      entucasa
-                    </SelectItem>
-                    <SelectItem value="zeus" className="text-[#e9edef] focus:bg-[#3b4a54] focus:text-[#e9edef]">
-                      zeus
+                    <SelectItem value="ganamos" className="text-[#e9edef] focus:bg-[#3b4a54] focus:text-[#e9edef]">
+                      ganamos
                     </SelectItem>
                   </SelectContent>
                 </Select>
