@@ -12,7 +12,7 @@ import React from "react";
  */
 
 // Corta en los http(s):// y en los www. Se descartan los signos finales
-// (punto, coma, paréntesis) para que "entrá en https://ganamosnet.info/." no
+// (punto, coma, paréntesis) para que "entrá en https://ganamosonline.com." no
 // se lleve el punto adentro del link.
 const URL_REGEX = /((?:https?:\/\/|www\.)[^\s<>"']+[^\s<>"'.,:;!?)\]}])/gi;
 
