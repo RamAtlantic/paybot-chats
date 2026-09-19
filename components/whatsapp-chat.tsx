@@ -384,6 +384,7 @@ export default function WhatsAppChat({
           <div className="flex items-end gap-2">
             <InputChat
               isAdmin={isAdmin}
+              roomId={roomId}
               newMessage={newMessage}
               setNewMessage={setNewMessage}
               sendMessage={sendMessage}

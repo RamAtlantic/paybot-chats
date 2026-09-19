@@ -1,13 +1,21 @@
 import { API_ENDPOINTS } from "@/lib/api-config"
 
+export interface ResponseAction {
+  kind: "assign-account"
+  plataforma: string
+  template?: string
+}
+
 export interface ResponseData {
   _id: string
   atajo: string
   text?: string
   image?: string
-  type: "text" | "image" | "mixed"
+  type: "text" | "image" | "mixed" | "automation"
   status: boolean
   triggers: string[]
+  action?: ResponseAction
+  funnel?: { etapa: string; orden: number }
   createdAt: Date
   updatedAt: Date
 }

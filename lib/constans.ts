@@ -1,4 +1,4 @@
-import { Link2, MessageCircle, MessageSquare, Users } from "lucide-react";
+import { IdCard, Link2, MessageCircle, MessageSquare, Users } from "lucide-react";
 
 export const menuItems = [
     {
@@ -24,5 +24,11 @@ export const menuItems = [
       title: "Respuestas Automáticas",
       description: "Configura mensajes automáticos",
       path: "/responses", // O cambiar por otra ruta específica
+    },
+    {
+      icon: IdCard,
+      title: "Registros",
+      description: "Importá el Excel de cuentas y mirá el stock por plataforma",
+      path: "/registros",
     },
   ];

@@ -4,9 +4,13 @@ import { Button } from "../ui/button";
 import { Paperclip } from "lucide-react";
 import { handleKeyPress, handleFileSelect } from "@/lib/utils";
 import { ResponsesService, ResponseData } from "@/services/responses-service";
+import { AccountsService } from "@/services/accounts-service";
 import { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 import { Badge } from "../ui/badge";
+import { Loader2, Zap } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/auth-provider";
 
 
 interface InputChatProps {
@@ -18,6 +22,7 @@ interface InputChatProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   isUploadingImage: boolean;
   isAdmin?: boolean;
+  roomId?: string;
 }
 
 
@@ -30,7 +35,10 @@ const InputChat = ({
   fileInputRef,
   isUploadingImage,
   isAdmin = false,
+  roomId,
 }: InputChatProps) => {
+  const { user } = useAuth();
+  const [ejecutandoAutomation, setEjecutandoAutomation] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [filteredResponses, setFilteredResponses] = useState<ResponseData[]>([]);
   const [allResponses, setAllResponses] = useState<ResponseData[]>([]);
@@ -123,9 +131,74 @@ const InputChat = ({
     }
   };
 
+  // Automations: en vez de mandar texto, piden una cuenta del pool y la API
+  // entrega el usuario y la contraseña en el chat.
+  const ejecutarAutomation = async (response: ResponseData) => {
+    const plataforma = response.action?.plataforma;
+
+    if (!plataforma) {
+      toast({
+        title: "Automation incompleta",
+        description: `El atajo /${response.atajo} no tiene plataforma configurada.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!roomId) {
+      toast({
+        title: "No se pudo identificar el chat",
+        description: "Abrí la conversación de nuevo e intentá otra vez.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEjecutandoAutomation(true);
+    try {
+      const resultado = await AccountsService.assign({
+        roomId,
+        plataforma,
+        template: response.action?.template,
+        deliveredBy: user?.email || "panel",
+      });
+
+      if (resultado.reutilizada) {
+        toast({
+          title: "Este chat ya tenía cuenta",
+          description: `Usuario ${resultado.account.usuario} (${plataforma}). No se consumió una cuenta nueva.`,
+        });
+      } else {
+        toast({
+          title: `Cuenta entregada: ${resultado.account.usuario}`,
+          description: `${plataforma} · quedó asociada a este chat`,
+        });
+      }
+
+      setNewMessage("");
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : "Error desconocido";
+      const sinStock = (error as { code?: string })?.code === "SIN_STOCK";
+      toast({
+        title: sinStock ? `Sin stock de ${plataforma}` : "No se pudo entregar la cuenta",
+        description: sinStock
+          ? "No quedan cuentas disponibles. Cargá más desde Registros; mientras tanto podés usar /sin-stock."
+          : mensaje,
+        variant: "destructive",
+      });
+    } finally {
+      setEjecutandoAutomation(false);
+    }
+  };
+
   // Seleccionar una respuesta del atajo
   const selectResponse = (response: ResponseData) => {
     setShowShortcuts(false);
+
+    if (response.type === "automation") {
+      void ejecutarAutomation(response);
+      return;
+    }
 
     if (!sendCustomMessage) {
       console.error("sendCustomMessage no está disponible");
@@ -171,9 +244,19 @@ const InputChat = ({
                       <Badge variant="outline" className="text-xs border-[#8696a0] text-[#8696a0]">
                         /{response.atajo}
                       </Badge>
-                      <span className="text-sm truncate">
-                        {response.text ? response.text.slice(0, 50) + (response.text.length > 50 ? "..." : "") :
-                         response.image ? "Imagen" : "Contenido mixto"}
+                      <span className="text-sm truncate flex items-center gap-1">
+                        {response.type === "automation" ? (
+                          <>
+                            <Zap className="h-3 w-3 text-[#00a884]" />
+                            Entregar cuenta de {response.action?.plataforma || "la plataforma"}
+                          </>
+                        ) : response.text ? (
+                          response.text.slice(0, 50) + (response.text.length > 50 ? "..." : "")
+                        ) : response.image ? (
+                          "Imagen"
+                        ) : (
+                          "Contenido mixto"
+                        )}
                       </span>
                     </div>
                     {response.triggers.length > 0 && (
@@ -190,6 +273,12 @@ const InputChat = ({
               ))}
             </div>
           </ScrollArea>
+        </div>
+      )}
+
+      {ejecutandoAutomation && (
+        <div className="absolute bottom-full mb-2 left-0 flex items-center gap-2 text-xs text-[#8696a0] bg-[#2a3942] border border-[#3b4a54] rounded-full px-3 py-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> Buscando una cuenta disponible...
         </div>
       )}
 
