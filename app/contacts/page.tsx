@@ -37,9 +37,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
-import { formatDate } from "@/lib/utils"
 import { ContactService } from "@/services/contacts-service"
 import { Contact, CreateContactData, UpdateContactData } from "@/types/contact"
+
+function fechaCorta(valor?: string) {
+  if (!valor) return "—"
+  const d = new Date(valor)
+  if (isNaN(d.getTime())) return "—"
+  return d.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  })
+}
 
 const FORM_VACIO = { source: "", phone: "", username: "", notes: "", tags: "" }
 
@@ -147,7 +157,7 @@ export default function ContactsPage() {
     >
       <Card className="overflow-hidden p-0">
         <Toolbar>
-          <Field label="Usuario" className="flex-1">
+          <Field label="Usuario" className="flex-1 max-w-sm">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle-foreground" />
               <Input
@@ -250,7 +260,7 @@ export default function ContactsPage() {
                       )}
                     </TableCell>
                     <TableCell className="num text-[12px] text-subtle-foreground">
-                      {contacto.createdAt ? formatDate(contacto.createdAt) : "—"}
+                      {fechaCorta(contacto.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

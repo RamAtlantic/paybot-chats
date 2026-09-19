@@ -361,7 +361,7 @@ export default function RegistrosPage() {
                 </Select>
               </Field>
 
-              <Field label="Usuario" className="flex-1">
+              <Field label="Usuario" className="flex-1 max-w-sm">
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle-foreground" />
                   <Input

@@ -255,7 +255,7 @@ export default function ResponsesPage() {
     >
       <Card className="overflow-hidden p-0">
         <Toolbar>
-          <Field label="Buscar" className="flex-1">
+          <Field label="Buscar" className="flex-1 max-w-sm">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle-foreground" />
               <Input
