@@ -5,6 +5,7 @@ import { Paperclip } from "lucide-react";
 import { handleKeyPress, handleFileSelect } from "@/lib/utils";
 import { ResponsesService, ResponseData } from "@/services/responses-service";
 import { AccountsService } from "@/services/accounts-service";
+import { ChatActionsService } from "@/services/chat-actions-service";
 import { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "../ui/scroll-area";
 import { Badge } from "../ui/badge";
@@ -143,6 +144,34 @@ const InputChat = ({
     }
   };
 
+  // Atajos marcados como "mensaje del bot": el texto sale con la identidad del
+  // bot y con el "escribiendo…" adelante, pero lo dispara el operador (ej. la
+  // acreditación, que recién se manda después de mirar el comprobante).
+  const enviarComoBot = async (response: ResponseData) => {
+    if (!roomId) {
+      toast({
+        title: "No se pudo identificar el chat",
+        description: "Abrí la conversación de nuevo e intentá otra vez.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEjecutandoAutomation(true);
+    try {
+      await ChatActionsService.operatorMessage(roomId, response._id, user?.email || "panel");
+      setNewMessage("");
+    } catch (error) {
+      toast({
+        title: "No se pudo enviar el mensaje",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      });
+    } finally {
+      setEjecutandoAutomation(false);
+    }
+  };
+
   // Automations: en vez de mandar texto, piden una cuenta del pool y la API
   // entrega el usuario y la contraseña en el chat.
   const ejecutarAutomation = async (response: ResponseData) => {
@@ -207,6 +236,11 @@ const InputChat = ({
   const selectResponse = (response: ResponseData) => {
     setShowShortcuts(false);
 
+    if (response.action?.kind === "send-message") {
+      void enviarComoBot(response);
+      return;
+    }
+
     if (response.type === "automation") {
       void ejecutarAutomation(response);
       return;
@@ -264,6 +298,11 @@ const InputChat = ({
                             <Zap className="h-3 w-3 text-[#00a884]" />
                             Entregar cuenta de {response.action?.plataforma || "la plataforma"}
                           </>
+                        ) : response.action?.kind === "send-message" ? (
+                          <>
+                            <Zap className="h-3 w-3 text-[#00a884]" />
+                            {(response.text || "Mensaje del bot").slice(0, 45)}
+                          </>
                         ) : response.text ? (
                           response.text.slice(0, 50) + (response.text.length > 50 ? "..." : "")
                         ) : response.image ? (
@@ -292,7 +331,7 @@ const InputChat = ({
 
       {ejecutandoAutomation && (
         <div className="absolute bottom-full mb-2 left-0 flex items-center gap-2 text-xs text-[#8696a0] bg-[#2a3942] border border-[#3b4a54] rounded-full px-3 py-1">
-          <Loader2 className="h-3 w-3 animate-spin" /> Buscando una cuenta disponible...
+          <Loader2 className="h-3 w-3 animate-spin" /> Enviando…
         </div>
       )}
 

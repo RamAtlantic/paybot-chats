@@ -74,9 +74,20 @@ const FORM_VACIO = {
   type: "text" as ResponseType,
   status: true,
   triggers: [] as string[],
+  // El texto sale como mensaje del bot (con "escribiendo…" y demora) en vez de
+  // irse como un mensaje del operador. Lo dispara el operador igual.
+  comoBot: false,
 }
 
-function TipoBadge({ type, plataforma }: { type: ResponseType; plataforma?: string }) {
+function TipoBadge({
+  type,
+  plataforma,
+  comoBot,
+}: {
+  type: ResponseType
+  plataforma?: string
+  comoBot?: boolean
+}) {
   if (type === "automation")
     return (
       <span className="flex flex-wrap items-center gap-1">
@@ -95,6 +106,17 @@ function TipoBadge({ type, plataforma }: { type: ResponseType; plataforma?: stri
       <Badge variant="info">
         <ImageIcon /> imagen
       </Badge>
+    )
+  if (comoBot)
+    return (
+      <span className="flex flex-wrap items-center gap-1">
+        <Badge variant="secondary">
+          <Type /> texto
+        </Badge>
+        <Badge variant="default">
+          <Zap /> bot
+        </Badge>
+      </span>
     )
   return (
     <Badge variant="secondary">
@@ -164,6 +186,7 @@ export default function ResponsesPage() {
       type: r.type,
       status: r.status,
       triggers: [...(r.triggers || [])],
+      comoBot: r.action?.kind === "send-message",
     })
     setTriggerActual("")
     setAbierto(true)
@@ -179,7 +202,14 @@ export default function ResponsesPage() {
         status: formData.status,
         triggers: formData.triggers,
       }
-      if (!esAutomation) payload.type = formData.type as "text" | "image" | "mixed"
+      if (!esAutomation) {
+        payload.type = formData.type as "text" | "image" | "mixed"
+        // Solo se manda `action` cuando cambió: si no, el PUT lo deja como está.
+        const eraBot = editando.action?.kind === "send-message"
+        if (formData.comoBot !== eraBot) {
+          payload.action = formData.comoBot ? { kind: "send-message" } : null
+        }
+      }
       await updateMutation.mutateAsync({ id: editando._id, payload })
       toast({ title: "Respuesta actualizada", variant: "success" })
       cerrar()
@@ -191,6 +221,7 @@ export default function ResponsesPage() {
         type: formData.type as "text" | "image" | "mixed",
         status: formData.status,
         triggers: formData.triggers,
+        ...(formData.comoBot ? { action: { kind: "send-message" as const } } : {}),
       })
     }
   }
@@ -335,7 +366,11 @@ export default function ResponsesPage() {
                     {r.atajo}
                   </TableCell>
                   <TableCell>
-                    <TipoBadge type={r.type} plataforma={r.action?.plataforma} />
+                    <TipoBadge
+                      type={r.type}
+                      plataforma={r.action?.plataforma}
+                      comoBot={r.action?.kind === "send-message"}
+                    />
                   </TableCell>
                   <TableCell className="max-w-0">
                     {r.type === "image" && r.image ? (
@@ -572,6 +607,34 @@ export default function ResponsesPage() {
                   value={formData.text}
                   onChange={(e) => setFormData({ ...formData, text: e.target.value })}
                 />
+              </div>
+            )}
+
+            {/* enviar como mensaje del bot */}
+            {formData.type !== "automation" && formData.type !== "image" && (
+              <div className="sm:col-span-2">
+                <div className="flex items-center justify-between rounded-lg border border-border bg-surface-2/40 px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <Zap
+                      className={cn(
+                        "size-4",
+                        formData.comoBot ? "text-primary" : "text-subtle-foreground"
+                      )}
+                    />
+                    <div>
+                      <p className="text-[13px] font-medium">Enviar como mensaje del bot</p>
+                      <p className="text-[12px] text-subtle-foreground">
+                        Lo seguís disparando vos desde el chat, pero sale con la identidad del bot,
+                        con «escribiendo…» y la demora configurada en Ajustes. Es lo que usa el
+                        aviso de acreditación.
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={formData.comoBot}
+                    onCheckedChange={(checked) => setFormData({ ...formData, comoBot: checked })}
+                  />
+                </div>
               </div>
             )}
 

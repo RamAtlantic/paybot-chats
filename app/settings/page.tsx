@@ -5,7 +5,9 @@ import Image from "next/image"
 import {
   Banknote,
   Camera,
+  Clock,
   FileText,
+  ImageIcon,
   Landmark,
   Link2,
   MessageCircle,
@@ -47,6 +49,8 @@ export default function SettingsPage() {
     welcomeMessage: "",
     phone: "",
     automationMessage: "",
+    imageAckMessage: "",
+    botDelaySeconds: "5",
     cbu: "",
     alias: "",
     titular: "",
@@ -82,6 +86,8 @@ export default function SettingsPage() {
           welcomeMessage: data.welcomeMessage || "",
           phone: data.phone || "",
           automationMessage: data.automationMessage || "",
+          imageAckMessage: data.imageAckMessage || "",
+          botDelaySeconds: String(data.botDelaySeconds ?? 5),
           cbu: data.cbu || "",
           alias: data.alias || "",
           titular: data.titular || "",
@@ -143,6 +149,7 @@ export default function SettingsPage() {
             : null,
           isConnected,
           ...formData,
+          botDelaySeconds: Number(formData.botDelaySeconds) || 0,
           timestamp: new Date().toISOString(),
         }),
       })
@@ -302,6 +309,45 @@ export default function SettingsPage() {
                   <p className="text-[11px] text-subtle-foreground">
                     Se envía solo cuando la persona escribe por primera vez, con un botón
                     «Quiero usuario y bono» por cada automation activa en Respuestas.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="image-ack">
+                    <ImageIcon className="size-3.5" /> Aviso al recibir una imagen
+                  </Label>
+                  <Textarea
+                    id="image-ack"
+                    rows={2}
+                    placeholder="📸 ¡Recibido! Estoy validando la imagen, aguardame unos segundos 🔍"
+                    value={formData.imageAckMessage}
+                    onChange={(e) => actualizar("imageAckMessage", e.target.value)}
+                  />
+                  <p className="text-[11px] text-subtle-foreground">
+                    Sale cuando el jugador manda una foto (casi siempre el comprobante). Si manda
+                    varias seguidas se avisa una sola vez por minuto y medio.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="bot-delay">
+                    <Clock className="size-3.5" /> Demora del bot
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="bot-delay"
+                      type="number"
+                      min={0}
+                      max={20}
+                      className="num w-24"
+                      value={formData.botDelaySeconds}
+                      onChange={(e) => actualizar("botDelaySeconds", e.target.value)}
+                    />
+                    <span className="text-[13px] text-subtle-foreground">segundos</span>
+                  </div>
+                  <p className="text-[11px] text-subtle-foreground">
+                    Cuánto se muestra «escribiendo…» antes de cada mensaje automático. Los mensajes
+                    encadenados esperan su turno, no se pisan. En 0 se mandan al instante.
                   </p>
                 </div>
 

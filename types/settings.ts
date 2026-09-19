@@ -21,6 +21,8 @@ export interface SettingsData {
     banco?: string
     automationMessage?: string
     paymentTemplate?: string
+    imageAckMessage?: string
+    botDelaySeconds?: number
     timestamp: string
     createdAt: string
     updatedAt: string
@@ -41,6 +43,8 @@ export interface SettingsData {
     banco?: string
     automationMessage?: string
     paymentTemplate?: string
+    imageAckMessage?: string
+    botDelaySeconds?: number
     timestamp?: string
   }
   

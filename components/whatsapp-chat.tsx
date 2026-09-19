@@ -12,6 +12,7 @@ import { API_ENDPOINTS } from "@/lib/api-config";
 import { RoomService } from "@/services/room-service";
 import {
   ConnectedSocket,
+  Message,
   Room,
   UnifiedMessage,
   User,
@@ -33,6 +34,7 @@ import NotFound from "./chat/not-found";
 import EmptyChat from "./chat/empty-chat";
 import InputChat from "./chat/input-chat";
 import WhatsAppCta from "./chat/whatsapp-cta";
+import TypingIndicator from "./chat/typing-indicator";
 
 export default function WhatsAppChat({
   isAdmin,
@@ -72,6 +74,8 @@ export default function WhatsAppChat({
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  // El bot está preparando un mensaje automático (evento `bot-typing` de la API)
+  const [botEscribiendo, setBotEscribiendo] = useState(false);
 
   // instancia de refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -94,7 +98,7 @@ export default function WhatsAppChat({
       scrollToBottom();
     }, 100);
     return () => clearTimeout(timeoutId);
-  }, [messages]);
+  }, [messages, botEscribiendo]);
 
   // Query para fetch room data usando React Query
   const {
@@ -179,14 +183,10 @@ export default function WhatsAppChat({
       offSocket();
     });
 
-    socketInstance.on(
-      "chat-message",
-      socketChatMessage({
-        setMessages,
-        setLocalMessages,
-        currentUser,
-      })
-    );
+    socketInstance.on("chat-message", (mensaje: Message) => {
+      setBotEscribiendo(false);
+      socketChatMessage({ setMessages, setLocalMessages, currentUser })(mensaje);
+    });
 
     socketInstance.on(
       "room-users",
@@ -197,9 +197,22 @@ export default function WhatsAppChat({
       })
     );
 
+    // "Escribiendo…" del bot. Si por lo que sea no llega el aviso de que
+    // terminó, se apaga solo a los 25 s para no dejar los puntitos colgados.
+    let apagarTipeo: ReturnType<typeof setTimeout> | undefined;
+    socketInstance.on("bot-typing", (data: { roomId?: string; typing?: boolean }) => {
+      if (data?.roomId && data.roomId !== roomId) return;
+      clearTimeout(apagarTipeo);
+      setBotEscribiendo(Boolean(data?.typing));
+      if (data?.typing) {
+        apagarTipeo = setTimeout(() => setBotEscribiendo(false), 25000);
+      }
+    });
+
     setSocket(socketInstance);
 
     return () => {
+      clearTimeout(apagarTipeo);
       socketInstance.disconnect();
     };
   }, [roomId, users, currentUser, phone, room, isAdmin, messagesRoom]);
@@ -236,6 +249,7 @@ export default function WhatsAppChat({
         userId: connectedUser._id,
         type: "text",
         read: isAdmin ? true : false, // Los mensajes de admin se envían como leídos
+        sender: isAdmin ? "admin" : "user",
       });
     },
     [socket, roomId, phone, room, currentUser, isAdmin]
@@ -380,6 +394,11 @@ export default function WhatsAppChat({
               users={users}
             />
           )}
+
+          {botEscribiendo && (
+            <TypingIndicator nombre={!isAdmin ? settings?.displayName : "Automation"} />
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 

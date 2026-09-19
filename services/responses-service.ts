@@ -1,8 +1,13 @@
 import { API_ENDPOINTS } from "@/lib/api-config"
 
 export interface ResponseAction {
-  kind: "assign-account"
-  plataforma: string
+  /**
+   * `assign-account`: entrega una cuenta del pool (automation).
+   * `send-message`: el texto sale como mensaje del bot, con "escribiendo…" y
+   *   demora, pero lo dispara el operador a mano (ej. la acreditación).
+   */
+  kind: "assign-account" | "send-message"
+  plataforma?: string
   template?: string
 }
 
@@ -27,6 +32,7 @@ export interface CreateResponseData {
   type: "text" | "image" | "mixed" | "automation"
   status?: boolean
   triggers?: string[]
+  action?: ResponseAction | null
 }
 
 export interface UpdateResponseData {
@@ -36,6 +42,7 @@ export interface UpdateResponseData {
   type?: "text" | "image" | "mixed" | "automation"
   status?: boolean
   triggers?: string[]
+  action?: ResponseAction | null
 }
 
 export class ResponsesService {
