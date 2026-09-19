@@ -3,13 +3,17 @@
 import * as React from "react"
 import Image from "next/image"
 import {
+  Banknote,
   Camera,
   FileText,
+  Landmark,
   Link2,
   MessageCircle,
   Phone,
   Power,
+  Tag,
   UserCheck,
+  Zap,
 } from "lucide-react"
 
 import { AdminShell } from "@/components/admin/admin-shell"
@@ -42,6 +46,12 @@ export default function SettingsPage() {
     description: "",
     welcomeMessage: "",
     phone: "",
+    automationMessage: "",
+    cbu: "",
+    alias: "",
+    titular: "",
+    banco: "",
+    paymentTemplate: "",
   })
 
   const actualizar = (campo: string, valor: string) => {
@@ -71,6 +81,12 @@ export default function SettingsPage() {
           description: data.description || "",
           welcomeMessage: data.welcomeMessage || "",
           phone: data.phone || "",
+          automationMessage: data.automationMessage || "",
+          cbu: data.cbu || "",
+          alias: data.alias || "",
+          titular: data.titular || "",
+          banco: data.banco || "",
+          paymentTemplate: data.paymentTemplate || "",
         })
       } catch (error) {
         toast({
@@ -272,6 +288,23 @@ export default function SettingsPage() {
                   />
                 </div>
 
+                <div className="space-y-1.5">
+                  <Label htmlFor="automation-message">
+                    <Zap className="size-3.5" /> Mensaje con los botones de registro
+                  </Label>
+                  <Textarea
+                    id="automation-message"
+                    rows={2}
+                    placeholder="¿Querés empezar a jugar? Pedí tu usuario y tu bono acá abajo 👇"
+                    value={formData.automationMessage}
+                    onChange={(e) => actualizar("automationMessage", e.target.value)}
+                  />
+                  <p className="text-[11px] text-subtle-foreground">
+                    Se envía solo cuando la persona escribe por primera vez, con un botón
+                    «Quiero usuario y bono» por cada automation activa en Respuestas.
+                  </p>
+                </div>
+
                 <div className="flex items-center justify-between rounded-lg border border-border bg-surface-2/40 px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <Power
@@ -328,7 +361,94 @@ export default function SettingsPage() {
                     value={formData.phone}
                     onChange={(e) => actualizar("phone", e.target.value)}
                   />
+                  <p className="text-[11px] text-subtle-foreground">
+                    Es el número del botón de WhatsApp del chat.
+                  </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div>
+                  <CardTitle>Datos de cobro</CardTitle>
+                  <CardDescription>
+                    Los envía el botón «CBU para depositar» después de entregar el usuario
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cbu">
+                      <Banknote className="size-3.5" /> CBU / CVU
+                    </Label>
+                    <Input
+                      id="cbu"
+                      className="num"
+                      placeholder="0000003100010000000001"
+                      value={formData.cbu}
+                      onChange={(e) => actualizar("cbu", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="alias">
+                      <Tag className="size-3.5" /> Alias
+                    </Label>
+                    <Input
+                      id="alias"
+                      placeholder="santo.circo.mp"
+                      value={formData.alias}
+                      onChange={(e) => actualizar("alias", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="titular">
+                      <UserCheck className="size-3.5" /> Titular
+                    </Label>
+                    <Input
+                      id="titular"
+                      placeholder="Nombre y apellido del titular"
+                      value={formData.titular}
+                      onChange={(e) => actualizar("titular", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="banco">
+                      <Landmark className="size-3.5" /> Banco o billetera
+                    </Label>
+                    <Input
+                      id="banco"
+                      placeholder="Mercado Pago"
+                      value={formData.banco}
+                      onChange={(e) => actualizar("banco", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="payment-template">
+                    <MessageCircle className="size-3.5" /> Mensaje que recibe el jugador
+                  </Label>
+                  <Textarea
+                    id="payment-template"
+                    rows={5}
+                    placeholder={"💰 Datos para depositar\n\n🏦 CBU/CVU: {{cbu}}\n🏷️ Alias: {{alias}}\n👤 Titular: {{titular}}"}
+                    value={formData.paymentTemplate}
+                    onChange={(e) => actualizar("paymentTemplate", e.target.value)}
+                  />
+                  <p className="text-[11px] text-subtle-foreground">
+                    Variables disponibles: {"{{cbu}}"}, {"{{alias}}"}, {"{{titular}}"} y{" "}
+                    {"{{banco}}"}. Si lo dejás vacío se usa el mensaje por defecto.
+                  </p>
+                </div>
+
+                {!formData.cbu && !formData.alias && (
+                  <p className="rounded-lg border border-warning/35 bg-warning/8 px-3 py-2 text-[12px] text-warning">
+                    Sin CBU ni alias cargados el botón «CBU para depositar» no se le muestra al
+                    jugador.
+                  </p>
+                )}
               </CardContent>
             </Card>
 

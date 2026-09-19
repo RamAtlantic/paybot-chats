@@ -22,8 +22,28 @@ export function linkWhatsApp(phone?: string | null, mensaje?: string): string | 
   return `https://wa.me/${numero}${texto ? `?text=${encodeURIComponent(texto)}` : ""}`
 }
 
-export function mensajeDesdeChat(displayName?: string | null): string {
-  return displayName
+/**
+ * Texto que se abre ya escrito en WhatsApp. Si la persona ya tiene un usuario
+ * entregado por la automation, va incluido: así el operador sabe con quién
+ * habla sin tener que buscarlo.
+ */
+export function mensajeDesdeChat(
+  displayName?: string | null,
+  cuenta?: { usuario?: string | null; plataforma?: string | null }
+): string {
+  const saludo = displayName
     ? `Hola ${displayName}! Vengo del chat web 👋`
     : "Hola! Vengo del chat web 👋"
+
+  const usuario = cuenta?.usuario?.trim()
+  if (!usuario) return saludo
+
+  const plataforma = cuenta?.plataforma?.trim()
+  return `${saludo}\nMi usuario es ${usuario}${plataforma ? ` (${plataforma})` : ""}`
+}
+
+/** Primera plataforma taggeada en la room (la automation la deja en `tags`). */
+export function plataformaDeRoom(tags?: string | null): string {
+  if (!tags) return ""
+  return tags.split(",").map((t) => t.trim()).filter(Boolean)[0] || ""
 }
