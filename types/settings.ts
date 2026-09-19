@@ -15,6 +15,12 @@ export interface SettingsData {
     description: string
     welcomeMessage: string
     phone?: string
+    cbu?: string
+    alias?: string
+    titular?: string
+    banco?: string
+    automationMessage?: string
+    paymentTemplate?: string
     timestamp: string
     createdAt: string
     updatedAt: string
@@ -29,6 +35,12 @@ export interface SettingsData {
     description: string
     welcomeMessage: string
     phone?: string
+    cbu?: string
+    alias?: string
+    titular?: string
+    banco?: string
+    automationMessage?: string
+    paymentTemplate?: string
     timestamp?: string
   }
   

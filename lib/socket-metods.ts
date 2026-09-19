@@ -65,7 +65,7 @@ export function socketOff(data: SocketOffData) {
 // funcion para unificar los mensajes de chat y whatsapp
 export function socketChatMessage(data: SocketChatMessageData) {
   const { setMessages, setLocalMessages, currentUser } = data;
-  return (message: Message & { type?: "text" | "image" }) => {
+  return (message: Message) => {
     console.log("Mensaje recibido:", message);
 
     const unifiedMessage: UnifiedMessage = {
@@ -76,6 +76,7 @@ export function socketChatMessage(data: SocketChatMessageData) {
       messageType: "chat",
       source: "chat",
       type: message.type || "text", // Tipo por defecto 'text'
+      actions: message.actions || [], // Botones del bot (type: "interactive")
       sendStatus: "sent", // Mensaje confirmado por el servidor
       read: message.read || false, // Incluir estado de lectura
     };

@@ -57,7 +57,10 @@ export class RoomService {
           messageId: msg.messageId,
           type_message: msg.type,
           source: msg.source,
-          type: 'text'
+          // Los mensajes con botones del bot llegan como "interactive"; el resto
+          // se sigue tratando como texto (las imágenes se detectan por la URL).
+          type: msg.type === 'interactive' ? 'interactive' : 'text',
+          actions: msg.actions || []
         }))
 
         // Modify messages if user role is 'user' and NOT in admin mode

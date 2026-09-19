@@ -12,5 +12,6 @@ export const API_ENDPOINTS = {
   responses: `${API_BASE_URL}/api/responses`,
   settings: `${API_BASE_URL}/api/settings`,
   archived: `${API_BASE_URL}/api/archived`,
+  chatActions: `${API_BASE_URL}/api/chat-actions`,
   socket: API_BASE_URL, // El socket usa la misma URL base que la API
 }

@@ -6,6 +6,7 @@ import { Room, UnifiedMessage, User } from "@/types/chat";
 import { isOwnMessage } from "@/lib/utils";
 import { SettingsData } from "@/types/settings";
 import { Loader2, X } from "lucide-react";
+import MessageActions from "./chat/message-actions";
 
 interface MessagesProps {
   room: Room;
@@ -130,10 +131,20 @@ export default function Messages({
                       />
                     </div>
                   ) : (
-                    <p className="text-sm leading-relaxed break-words">
+                    <p className="text-sm leading-relaxed break-words whitespace-pre-wrap">
                       {message.content}
                     </p>
                   )}
+
+                  {/* Botones del bot (mensajes con type: "interactive") */}
+                  {message.actions && message.actions.length > 0 && (
+                    <MessageActions
+                      actions={message.actions}
+                      roomId={room?._id}
+                      isAdmin={isAdmin}
+                    />
+                  )}
+
                   <div className="flex items-center justify-end gap-1 mt-1">
                     <span className="text-[10px] text-[#8696a0] leading-none">
                       {new Date(message.timestamp).toLocaleTimeString("es-ES", {

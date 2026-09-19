@@ -1,3 +1,15 @@
+// Botón que el bot manda dentro de un mensaje (type: "interactive").
+// El front nunca elige la plataforma: manda de vuelta el id de la acción.
+export interface MessageAction {
+    id: string
+    kind: 'assign-account' | 'payment-info'
+    label: string
+    hint?: string
+    responseId?: string
+    plataforma?: string
+    style?: 'primary' | 'secondary'
+  }
+
 export interface Message {
     _id: string
     content: string
@@ -9,6 +21,8 @@ export interface Message {
     userId?: string // Added for user identification
     tempMessageId?: string // Temporary ID for local message matching
     read?: boolean // Message read status
+    type?: 'text' | 'image' | 'interactive'
+    actions?: MessageAction[]
   }
   
   // Interface for messages returned by the unified API endpoint
@@ -24,6 +38,7 @@ export interface Message {
     messageId?: string
     conversationId?: string
     ticketId?: string
+    actions?: MessageAction[]
   }
   
   // Unified interface for all message types in the chat
@@ -40,7 +55,8 @@ export interface Message {
     messageId?: string // For WhatsApp messages
     type_message?: string // For WhatsApp messages
     source?: string // To indicate message source (chat/whatsapp)
-    type?: 'text' | 'image' // Message content type
+    type?: 'text' | 'image' | 'interactive' // Message content type
+    actions?: MessageAction[] // Botones del bot
     sendStatus?: 'sending' | 'sent' // Local send status for optimistic updates
     read?: boolean // Message read status
   }
@@ -99,6 +115,8 @@ export interface Message {
     }
     username?: string
     contactId?: string
+    accountId?: string
+    tags?: string
     unreadRoom?: boolean
   }
   

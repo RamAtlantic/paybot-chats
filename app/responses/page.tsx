@@ -76,12 +76,19 @@ const FORM_VACIO = {
   triggers: [] as string[],
 }
 
-function TipoBadge({ type }: { type: ResponseType }) {
+function TipoBadge({ type, plataforma }: { type: ResponseType; plataforma?: string }) {
   if (type === "automation")
     return (
-      <Badge variant="default">
-        <Zap /> automation
-      </Badge>
+      <span className="flex flex-wrap items-center gap-1">
+        <Badge variant="default">
+          <Zap /> automation
+        </Badge>
+        {plataforma ? (
+          <Badge variant="outline">{plataforma}</Badge>
+        ) : (
+          <Badge variant="warning">sin plataforma</Badge>
+        )}
+      </span>
     )
   if (type === "image")
     return (
@@ -328,7 +335,7 @@ export default function ResponsesPage() {
                     {r.atajo}
                   </TableCell>
                   <TableCell>
-                    <TipoBadge type={r.type} />
+                    <TipoBadge type={r.type} plataforma={r.action?.plataforma} />
                   </TableCell>
                   <TableCell className="max-w-0">
                     {r.type === "image" && r.image ? (
@@ -426,8 +433,13 @@ export default function ResponsesPage() {
             <div className="space-y-1.5">
               <Label htmlFor="tipo">Tipo</Label>
               {formData.type === "automation" ? (
-                <div className="flex h-9 items-center rounded-md border border-border bg-surface-2/40 px-3 text-[13px] text-muted-foreground">
+                <div className="flex h-9 items-center gap-2 rounded-md border border-border bg-surface-2/40 px-3 text-[13px] text-muted-foreground">
                   Entrega automática de cuenta
+                  {editando?.action?.plataforma ? (
+                    <Badge variant="outline">{editando.action.plataforma}</Badge>
+                  ) : (
+                    <Badge variant="warning">sin plataforma</Badge>
+                  )}
                 </div>
               ) : (
                 <Select
@@ -551,7 +563,7 @@ export default function ResponsesPage() {
             ) : (
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="text">
-                  {formData.type === "automation" ? "Mensaje que acompaña la entrega" : "Texto"}
+                  {formData.type === "automation" ? "Mensaje extra (el de la entrega sale del template)" : "Texto"}
                 </Label>
                 <Textarea
                   id="text"

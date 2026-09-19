@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Button } from "../ui/button";
-import { Phone, UserPlus, Loader2 } from "lucide-react";
+import { UserPlus, Loader2 } from "lucide-react";
+import WhatsAppIcon from "./whatsapp-icon";
 import { Room } from "@/types/chat";
 import { ContactService } from "@/services/contacts-service";
 import { useToast } from "@/hooks/use-toast";
+import { linkWhatsApp, mensajeDesdeChat, plataformaDeRoom } from "@/lib/whatsapp";
 
-const SectionButton = ({ isAdmin, room, adminphone }: { isAdmin: boolean, room: Room, adminphone: string }) => {
+const SectionButton = ({ isAdmin, room, adminphone, displayName }: { isAdmin: boolean, room: Room, adminphone: string, displayName?: string }) => {
   const [isAddingContact, setIsAddingContact] = useState(false);
   const { toast } = useToast();
 
@@ -46,16 +48,29 @@ const SectionButton = ({ isAdmin, room, adminphone }: { isAdmin: boolean, room: 
 
   return (
     <div className="flex items-center gap-2">
-      <Button
-        onClick={() => {
-          window.open(`https://wa.me/${adminphone}`, '_blank');
-        }}
-        variant="ghost"
-        size="sm"
-        className="p-2 hover:bg-[#3b4a54] text-[#8696a0]"
-      >
-        <Phone className="h-5 w-5" />
-      </Button>
+      {linkWhatsApp(adminphone) && (
+        <Button
+          onClick={() => {
+            // Si la automation ya le entregó una cuenta, el mensaje de WhatsApp
+            // sale con el usuario adentro.
+            const cuenta = room.accountId
+              ? { usuario: room.username, plataforma: plataformaDeRoom(room.tags) }
+              : undefined;
+            const url = linkWhatsApp(adminphone, mensajeDesdeChat(displayName, cuenta));
+            if (url) window.open(url, "_blank", "noopener,noreferrer");
+          }}
+          variant="ghost"
+          size="sm"
+          className="p-2 hover:bg-[#3b4a54] text-[#25D366]"
+          title={
+            room.accountId && room.username
+              ? `Seguir por WhatsApp (usuario ${room.username})`
+              : "Seguir por WhatsApp"
+          }
+        >
+          <WhatsAppIcon className="h-5 w-5" />
+        </Button>
+      )}
       {isAdmin && (
       <Button
         onClick={handleAddContact}

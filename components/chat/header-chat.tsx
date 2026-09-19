@@ -148,6 +148,7 @@ export default function HeaderChat({
                 isAdmin={isAdmin || false}
                 room={room}
                 adminphone={settings?.phone || ""}
+                displayName={settings?.displayName}
               />
             </div>
           </div>
