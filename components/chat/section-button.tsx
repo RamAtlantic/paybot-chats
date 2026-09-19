@@ -4,8 +4,9 @@ import { Phone, UserPlus, Loader2 } from "lucide-react";
 import { Room } from "@/types/chat";
 import { ContactService } from "@/services/contacts-service";
 import { useToast } from "@/hooks/use-toast";
+import { linkWhatsApp, mensajeDesdeChat } from "@/lib/whatsapp";
 
-const SectionButton = ({ isAdmin, room, adminphone }: { isAdmin: boolean, room: Room, adminphone: string }) => {
+const SectionButton = ({ isAdmin, room, adminphone, displayName }: { isAdmin: boolean, room: Room, adminphone: string, displayName?: string }) => {
   const [isAddingContact, setIsAddingContact] = useState(false);
   const { toast } = useToast();
 
@@ -46,16 +47,20 @@ const SectionButton = ({ isAdmin, room, adminphone }: { isAdmin: boolean, room: 
 
   return (
     <div className="flex items-center gap-2">
-      <Button
-        onClick={() => {
-          window.open(`https://wa.me/${adminphone}`, '_blank');
-        }}
-        variant="ghost"
-        size="sm"
-        className="p-2 hover:bg-[#3b4a54] text-[#8696a0]"
-      >
-        <Phone className="h-5 w-5" />
-      </Button>
+      {linkWhatsApp(adminphone) && (
+        <Button
+          onClick={() => {
+            const url = linkWhatsApp(adminphone, mensajeDesdeChat(displayName));
+            if (url) window.open(url, "_blank", "noopener,noreferrer");
+          }}
+          variant="ghost"
+          size="sm"
+          className="p-2 hover:bg-[#3b4a54] text-[#8696a0]"
+          title="Escribir por WhatsApp"
+        >
+          <Phone className="h-5 w-5" />
+        </Button>
+      )}
       {isAdmin && (
       <Button
         onClick={handleAddContact}

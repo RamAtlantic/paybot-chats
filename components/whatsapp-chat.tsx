@@ -32,6 +32,7 @@ import LoadingChat from "./chat/loading-chat";
 import NotFound from "./chat/not-found";
 import EmptyChat from "./chat/empty-chat";
 import InputChat from "./chat/input-chat";
+import WhatsAppCta from "./chat/whatsapp-cta";
 
 export default function WhatsAppChat({
   isAdmin,
@@ -340,6 +341,8 @@ export default function WhatsAppChat({
         connectedUsers={connectedUsers}
         socket={socket}
       />
+
+      <WhatsAppCta settings={settings} isAdmin={isAdmin} />
 
       <div
         ref={dropZoneRef}
