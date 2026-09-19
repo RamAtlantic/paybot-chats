@@ -1,26 +1,56 @@
-"use client";
+"use client"
 
-import { useState } from "react";
+import * as React from "react"
 import {
-  IdCard,
-  Upload,
-  RefreshCw,
-  Loader2,
   AlertTriangle,
-  Eye,
-  EyeOff,
-  Undo2,
   Ban,
   CheckCircle2,
-} from "lucide-react";
-import { ProtectedRoute } from "@/components/layout/protected-route";
-import { VantaBackgroundLayout } from "@/components/layout/vanta";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+  Download,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
+  IdCard,
+  RefreshCw,
+  Search,
+  Undo2,
+  Upload,
+  X,
+} from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+
+import { AdminShell } from "@/components/admin/admin-shell"
+import {
+  CopyValue,
+  EmptyState,
+  ErrorState,
+  Field,
+  LoadingRows,
+  Pagination,
+  Section,
+  Spinner,
+  StatCard,
+  StatusDot,
+  Toolbar,
+} from "@/components/admin/kit"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -28,64 +58,57 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/hooks/use-toast";
-import { useAuth } from "@/context/auth-provider";
+} from "@/components/ui/table"
+import { toast } from "@/hooks/use-toast"
+import { useAuth } from "@/context/auth-provider"
+import { cn } from "@/lib/utils"
 import {
   AccountsService,
   AccountStatus,
   ImportSummary,
   PlatformAccount,
-} from "@/services/accounts-service";
+} from "@/services/accounts-service"
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground";
+const TODAS = "__todas__"
+const TODOS = "__todos__"
 
 function fecha(valor?: string | null) {
-  if (!valor) return "—";
-  const d = new Date(valor);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  if (!valor) return "—"
+  const d = new Date(valor)
+  if (isNaN(d.getTime())) return "—"
+  return d.toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
-function BadgeStatus({ status }: { status: AccountStatus }) {
-  const estilos: Record<AccountStatus, string> = {
-    disponible: "bg-emerald-500/15 text-emerald-400 border-emerald-500/40",
-    entregado: "bg-sky-500/15 text-sky-400 border-sky-500/40",
-    anulado: "bg-red-500/15 text-red-400 border-red-500/40",
-  };
-  const etiquetas: Record<AccountStatus, string> = {
-    disponible: "open",
-    entregado: "entregado",
-    anulado: "anulado",
-  };
-  return (
-    <Badge variant="outline" className={estilos[status]}>
-      {etiquetas[status]}
-    </Badge>
-  );
+function EstadoBadge({ status }: { status: AccountStatus }) {
+  if (status === "disponible") return <Badge variant="success">open</Badge>
+  if (status === "entregado") return <Badge variant="info">entregado</Badge>
+  return <Badge variant="danger">anulado</Badge>
 }
 
 export default function RegistrosPage() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
 
-  const [umbral, setUmbral] = useState(10);
-  const [plataforma, setPlataforma] = useState("");
-  const [status, setStatus] = useState<AccountStatus | "">("");
-  const [usuario, setUsuario] = useState("");
-  const [phone, setPhone] = useState("");
-  const [page, setPage] = useState(1);
-  const [verPasswords, setVerPasswords] = useState(false);
-  const [archivo, setArchivo] = useState<File | null>(null);
-  const [resumen, setResumen] = useState<ImportSummary | null>(null);
+  const [umbral, setUmbral] = React.useState(10)
+  const [plataforma, setPlataforma] = React.useState("")
+  const [status, setStatus] = React.useState<AccountStatus | "">("")
+  const [usuario, setUsuario] = React.useState("")
+  const [phone, setPhone] = React.useState("")
+  const [page, setPage] = React.useState(1)
+  const [verPasswords, setVerPasswords] = React.useState(false)
+  const [importOpen, setImportOpen] = React.useState(false)
 
   const stockQuery = useQuery({
     queryKey: ["accounts-stock", umbral],
     queryFn: () => AccountsService.getStock(umbral),
-    refetchInterval: 60000,
-  });
+    refetchInterval: 60_000,
+  })
 
   const listQuery = useQuery({
     queryKey: ["accounts-list", plataforma, status, usuario, phone, page, verPasswords],
@@ -96,459 +119,607 @@ export default function RegistrosPage() {
         usuario,
         phone,
         page,
-        limit: 20,
+        limit: 25,
         includePassword: verPasswords,
       }),
-  });
+  })
 
   const refrescar = () => {
-    queryClient.invalidateQueries({ queryKey: ["accounts-stock"] });
-    queryClient.invalidateQueries({ queryKey: ["accounts-list"] });
-  };
-
-  const importMutation = useMutation({
-    mutationFn: (file: File) => AccountsService.importFile(file, user?.email || undefined),
-    onSuccess: (data) => {
-      setResumen(data);
-      setArchivo(null);
-      refrescar();
-      toast({
-        title: `Importación lista: ${data.insertados} cuentas nuevas`,
-        description:
-          data.duplicadosEnBase.length || data.duplicadosEnArchivo.length || data.errores.length
-            ? `${data.duplicadosEnBase.length + data.duplicadosEnArchivo.length} duplicadas · ${data.errores.length} con error`
-            : "Sin duplicados ni errores",
-      });
-    },
-    onError: (error: Error) => {
-      toast({ title: "No se pudo importar", description: error.message, variant: "destructive" });
-    },
-  });
+    queryClient.invalidateQueries({ queryKey: ["accounts-stock"] })
+    queryClient.invalidateQueries({ queryKey: ["accounts-list"] })
+  }
 
   const releaseMutation = useMutation({
     mutationFn: (cuenta: PlatformAccount) =>
       AccountsService.release(cuenta._id, "liberada desde el panel", user?.email || undefined),
     onSuccess: () => {
-      refrescar();
-      toast({ title: "Cuenta liberada", description: "Volvió al pool como disponible." });
+      refrescar()
+      toast({
+        title: "Cuenta liberada",
+        description: "Volvió al pool como disponible.",
+        variant: "success",
+      })
     },
     onError: (error: Error) =>
       toast({ title: "No se pudo liberar", description: error.message, variant: "destructive" }),
-  });
+  })
 
   const statusMutation = useMutation({
     mutationFn: ({ cuenta, nuevo }: { cuenta: PlatformAccount; nuevo: AccountStatus }) =>
       AccountsService.update(cuenta._id, { status: nuevo }),
     onSuccess: () => {
-      refrescar();
-      toast({ title: "Estado actualizado" });
+      refrescar()
+      toast({ title: "Estado actualizado", variant: "success" })
     },
     onError: (error: Error) =>
       toast({ title: "No se pudo actualizar", description: error.message, variant: "destructive" }),
-  });
+  })
 
-  const stock = stockQuery.data;
-  const cuentas = listQuery.data?.accounts || [];
-  const paginacion = listQuery.data?.pagination;
+  const stock = stockQuery.data
+  const cuentas = listQuery.data?.accounts || []
+  const paginacion = listQuery.data?.pagination
+  const enAlerta = (stock?.plataformas || []).filter((p) => p.sinStock || p.stockBajo)
+  const hayFiltros = Boolean(plataforma || status || usuario || phone)
+
+  const limpiarFiltros = () => {
+    setPlataforma("")
+    setStatus("")
+    setUsuario("")
+    setPhone("")
+    setPage(1)
+  }
 
   return (
-    <ProtectedRoute>
-      <VantaBackgroundLayout>
-        <div className="relative z-10">
-          <main className="container mx-auto px-4 py-12">
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-10">
-                <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-primary via-emerald-400 to-primary bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(37,211,102,0.5)]">
-                  Registros
-                </h1>
-                <p className="text-muted-foreground">
-                  Cuentas precargadas que el chat entrega automáticamente
-                </p>
-              </div>
-
-              {/* ---------------------------------------------------- stock */}
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <IdCard className="h-5 w-5 text-primary" /> Stock por plataforma
-                </h2>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="umbral" className="text-xs text-muted-foreground">
-                    Avisar cuando queden
-                  </Label>
-                  <Input
-                    id="umbral"
-                    type="number"
-                    min={0}
-                    value={umbral}
-                    onChange={(e) => setUmbral(Number(e.target.value) || 0)}
-                    className="w-20 h-9"
-                  />
-                  <Button variant="ghost" size="icon" onClick={refrescar} title="Actualizar">
-                    <RefreshCw className={`h-4 w-4 ${stockQuery.isFetching ? "animate-spin" : ""}`} />
-                  </Button>
-                </div>
-              </div>
-
-              {stockQuery.isLoading ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : stock && stock.plataformas.length ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-10">
-                  {stock.plataformas.map((p) => (
-                    <Card
-                      key={p.plataforma}
-                      className={`bg-card/60 backdrop-blur-xl border ${
-                        p.sinStock
-                          ? "border-red-500/60"
-                          : p.stockBajo
-                          ? "border-amber-500/60"
-                          : "border-border/50"
-                      }`}
-                    >
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base flex items-center justify-between gap-2">
-                          <span className="truncate">{p.plataforma}</span>
-                          {p.sinStock ? (
-                            <Badge variant="outline" className="border-red-500/60 text-red-400 shrink-0">
-                              sin stock
-                            </Badge>
-                          ) : p.stockBajo ? (
-                            <Badge variant="outline" className="border-amber-500/60 text-amber-400 shrink-0">
-                              stock bajo
-                            </Badge>
-                          ) : null}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-3xl font-bold text-primary">{p.disponible}</div>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          disponibles · {p.entregado} entregadas · {p.total} en total
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Card className="bg-card/60 backdrop-blur-xl mb-10">
-                  <CardContent className="py-8 text-center text-muted-foreground">
-                    Todavía no hay cuentas cargadas. Importá el Excel desde la pestaña de abajo.
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* --------------------------------------------------- tabs */}
-              <Tabs defaultValue="listado">
-                <TabsList className="mb-6">
-                  <TabsTrigger value="listado">Listado</TabsTrigger>
-                  <TabsTrigger value="importar">Importar Excel</TabsTrigger>
-                </TabsList>
-
-                {/* ------------------------------------------------ listado */}
-                <TabsContent value="listado">
-                  <Card className="bg-card/60 backdrop-blur-xl">
-                    <CardHeader>
-                      <CardTitle className="text-lg">Cuentas</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mb-6">
-                        <div>
-                          <Label className="text-xs">Plataforma</Label>
-                          <select
-                            className={SELECT_CLASS}
-                            value={plataforma}
-                            onChange={(e) => {
-                              setPlataforma(e.target.value);
-                              setPage(1);
-                            }}
-                          >
-                            <option value="">Todas</option>
-                            {(stock?.plataformas || []).map((p) => (
-                              <option key={p.plataforma} value={p.plataforma}>
-                                {p.plataforma}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Estado</Label>
-                          <select
-                            className={SELECT_CLASS}
-                            value={status}
-                            onChange={(e) => {
-                              setStatus(e.target.value as AccountStatus | "");
-                              setPage(1);
-                            }}
-                          >
-                            <option value="">Todos</option>
-                            <option value="disponible">open (disponible)</option>
-                            <option value="entregado">entregado</option>
-                            <option value="anulado">anulado</option>
-                          </select>
-                        </div>
-                        <div>
-                          <Label className="text-xs">Usuario</Label>
-                          <Input
-                            value={usuario}
-                            onChange={(e) => {
-                              setUsuario(e.target.value);
-                              setPage(1);
-                            }}
-                            placeholder="buscar usuario"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Teléfono</Label>
-                          <Input
-                            value={phone}
-                            onChange={(e) => {
-                              setPhone(e.target.value);
-                              setPage(1);
-                            }}
-                            placeholder="buscar teléfono"
-                          />
-                        </div>
-                        <div className="flex items-end">
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => setVerPasswords((v) => !v)}
-                          >
-                            {verPasswords ? (
-                              <>
-                                <EyeOff className="h-4 w-4 mr-2" /> Ocultar claves
-                              </>
-                            ) : (
-                              <>
-                                <Eye className="h-4 w-4 mr-2" /> Ver claves
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-
-                      {listQuery.isLoading ? (
-                        <div className="flex justify-center py-10">
-                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                        </div>
-                      ) : listQuery.isError ? (
-                        <div className="text-center py-10 text-red-400">
-                          {(listQuery.error as Error).message}
-                        </div>
-                      ) : cuentas.length === 0 ? (
-                        <div className="text-center py-10 text-muted-foreground">
-                          No hay cuentas con esos filtros.
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Usuario</TableHead>
-                                {verPasswords && <TableHead>Contraseña</TableHead>}
-                                <TableHead>Plataforma</TableHead>
-                                <TableHead>Panel</TableHead>
-                                <TableHead>Operador</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead>Teléfono</TableHead>
-                                <TableHead>Entregada</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {cuentas.map((c) => (
-                                <TableRow key={c._id}>
-                                  <TableCell className="font-medium">{c.usuario}</TableCell>
-                                  {verPasswords && (
-                                    <TableCell className="font-mono text-xs">{c.password || "—"}</TableCell>
-                                  )}
-                                  <TableCell>{c.plataforma}</TableCell>
-                                  <TableCell className="text-muted-foreground">{c.panel || "—"}</TableCell>
-                                  <TableCell className="text-muted-foreground">{c.operador || "—"}</TableCell>
-                                  <TableCell>
-                                    <BadgeStatus status={c.status} />
-                                  </TableCell>
-                                  <TableCell>{c.phone || "—"}</TableCell>
-                                  <TableCell className="text-xs text-muted-foreground">
-                                    {fecha(c.deliveredAt)}
-                                  </TableCell>
-                                  <TableCell className="text-right whitespace-nowrap">
-                                    {c.status === "entregado" && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        title="Liberar: vuelve al pool"
-                                        onClick={() => releaseMutation.mutate(c)}
-                                        disabled={releaseMutation.isPending}
-                                      >
-                                        <Undo2 className="h-4 w-4" />
-                                      </Button>
-                                    )}
-                                    {c.status !== "anulado" ? (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        title="Anular"
-                                        onClick={() =>
-                                          statusMutation.mutate({ cuenta: c, nuevo: "anulado" })
-                                        }
-                                        disabled={statusMutation.isPending}
-                                      >
-                                        <Ban className="h-4 w-4 text-red-400" />
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        title="Reactivar"
-                                        onClick={() =>
-                                          statusMutation.mutate({ cuenta: c, nuevo: "disponible" })
-                                        }
-                                        disabled={statusMutation.isPending}
-                                      >
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                      </Button>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-
-                      {paginacion && paginacion.totalPages > 1 && (
-                        <div className="flex items-center justify-between mt-6">
-                          <span className="text-xs text-muted-foreground">
-                            Página {paginacion.currentPage} de {paginacion.totalPages} ·{" "}
-                            {paginacion.totalCount} cuentas
-                          </span>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!paginacion.hasPrevPage}
-                              onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            >
-                              Anterior
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!paginacion.hasNextPage}
-                              onClick={() => setPage((p) => p + 1)}
-                            >
-                              Siguiente
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* ----------------------------------------------- importar */}
-                <TabsContent value="importar">
-                  <Card className="bg-card/60 backdrop-blur-xl">
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Upload className="h-5 w-5 text-primary" /> Importar cuentas desde Excel
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p>
-                          El archivo (.xlsx o .csv) tiene que tener estas columnas, en cualquier orden:{" "}
-                          <span className="text-foreground font-medium">
-                            operador, panel, usuario, password, fecha y hora de registro, plataforma, status
-                          </span>
-                          .
-                        </p>
-                        <p>
-                          El status vacío se toma como <span className="text-foreground">open</span>. Si un
-                          usuario ya existe para esa plataforma, la fila se ignora: podés reimportar el mismo
-                          archivo sin duplicar nada.
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                        <Input
-                          type="file"
-                          accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-                          onChange={(e) => {
-                            setArchivo(e.target.files?.[0] || null);
-                            setResumen(null);
-                          }}
-                          className="sm:max-w-md"
-                        />
-                        <Button
-                          onClick={() => archivo && importMutation.mutate(archivo)}
-                          disabled={!archivo || importMutation.isPending}
-                        >
-                          {importMutation.isPending ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Importando...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="h-4 w-4 mr-2" /> Importar
-                            </>
-                          )}
-                        </Button>
-                      </div>
-
-                      {resumen && (
-                        <div className="rounded-lg border border-border/60 p-4 space-y-3">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                            <div>
-                              <div className="text-2xl font-bold text-emerald-400">
-                                {resumen.insertados}
-                              </div>
-                              <div className="text-xs text-muted-foreground">nuevas</div>
-                            </div>
-                            <div>
-                              <div className="text-2xl font-bold text-sky-400">
-                                {resumen.duplicadosEnBase.length + resumen.duplicadosEnArchivo.length}
-                              </div>
-                              <div className="text-xs text-muted-foreground">duplicadas</div>
-                            </div>
-                            <div>
-                              <div className="text-2xl font-bold text-red-400">
-                                {resumen.errores.length}
-                              </div>
-                              <div className="text-xs text-muted-foreground">con error</div>
-                            </div>
-                            <div>
-                              <div className="text-2xl font-bold">{resumen.totalFilas}</div>
-                              <div className="text-xs text-muted-foreground">filas leídas</div>
-                            </div>
-                          </div>
-
-                          {resumen.errores.length > 0 && (
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2 text-amber-400 text-sm">
-                                <AlertTriangle className="h-4 w-4" /> Filas que no entraron:
-                              </div>
-                              <ul className="text-xs text-muted-foreground space-y-1 max-h-48 overflow-y-auto">
-                                {resumen.errores.map((e, i) => (
-                                  <li key={i}>
-                                    Fila {e.fila}: {e.motivo}
-                                    {e.usuario ? ` (${e.usuario})` : ""}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </div>
-          </main>
+    <AdminShell
+      title="Registros"
+      description="Pool de cuentas precargadas que el chat entrega solo"
+      actions={
+        <>
+          <Button variant="ghost" size="icon-sm" onClick={refrescar} title="Actualizar">
+            <RefreshCw className={cn(stockQuery.isFetching && "animate-spin")} />
+          </Button>
+          <Button size="sm" onClick={() => setImportOpen(true)}>
+            <Upload />
+            <span className="hidden sm:inline">Importar Excel</span>
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-8">
+        {/* ------------------------------------------------------------ kpis */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard
+            label="Disponibles"
+            value={stock?.totales.disponible ?? 0}
+            hint="listas para entregar"
+            tone={(stock?.totales.disponible ?? 0) > 0 ? "primary" : "danger"}
+            loading={stockQuery.isLoading}
+          />
+          <StatCard
+            label="Entregadas"
+            value={stock?.totales.entregado ?? 0}
+            hint="asignadas a un chat"
+            loading={stockQuery.isLoading}
+          />
+          <StatCard
+            label="Anuladas"
+            value={stock?.totales.anulado ?? 0}
+            hint="fuera del pool"
+            loading={stockQuery.isLoading}
+          />
+          <StatCard
+            label="Plataformas en alerta"
+            value={enAlerta.length}
+            hint={`umbral: ${umbral} cuentas`}
+            tone={enAlerta.length ? "warning" : "neutral"}
+            loading={stockQuery.isLoading}
+          />
         </div>
-      </VantaBackgroundLayout>
-    </ProtectedRoute>
-  );
+
+        {/* ----------------------------------------------------------- stock */}
+        <Section
+          title="Stock por plataforma"
+          actions={
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] text-subtle-foreground">Avisar bajo</span>
+              <Input
+                type="number"
+                min={0}
+                value={umbral}
+                onChange={(e) => setUmbral(Number(e.target.value) || 0)}
+                className="num h-8 w-16 text-center"
+              />
+            </div>
+          }
+        >
+          {stockQuery.isLoading ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-24 rounded-lg border border-border skeleton" />
+              ))}
+            </div>
+          ) : stock && stock.plataformas.length ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {stock.plataformas.map((p) => {
+                const pct = p.total ? Math.round((p.disponible / p.total) * 100) : 0
+                return (
+                  <button
+                    key={p.plataforma}
+                    onClick={() => {
+                      setPlataforma(p.plataforma)
+                      setPage(1)
+                    }}
+                    className={cn(
+                      "hairline rounded-lg border bg-card px-4 py-3.5 text-left transition-colors hover:bg-surface-2/50",
+                      p.sinStock
+                        ? "border-danger/45"
+                        : p.stockBajo
+                        ? "border-warning/45"
+                        : "border-border hover:border-border-strong",
+                      plataforma === p.plataforma && "ring-1 ring-primary/50"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <StatusDot
+                          tone={p.sinStock ? "danger" : p.stockBajo ? "warning" : "success"}
+                        />
+                        <span className="truncate text-[13px] font-medium">{p.plataforma}</span>
+                      </span>
+                      {p.sinStock ? (
+                        <Badge variant="danger">sin stock</Badge>
+                      ) : p.stockBajo ? (
+                        <Badge variant="warning">bajo</Badge>
+                      ) : null}
+                    </div>
+                    <div className="num mt-2 flex items-baseline gap-1.5">
+                      <span
+                        className={cn(
+                          "text-2xl font-semibold leading-none",
+                          p.sinStock ? "text-danger" : p.stockBajo ? "text-warning" : "text-primary"
+                        )}
+                      >
+                        {p.disponible}
+                      </span>
+                      <span className="text-[12px] text-subtle-foreground">/ {p.total}</span>
+                    </div>
+                    <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-surface-3">
+                      <div
+                        className={cn(
+                          "h-full rounded-full",
+                          p.sinStock ? "bg-danger" : p.stockBajo ? "bg-warning" : "bg-primary"
+                        )}
+                        style={{ width: `${Math.max(pct, 2)}%` }}
+                      />
+                    </div>
+                    <p className="num mt-2 text-[11px] text-subtle-foreground">
+                      {p.entregado} entregadas · {p.anulado} anuladas
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <Card>
+              <EmptyState
+                icon={FileSpreadsheet}
+                title="Todavía no hay cuentas cargadas"
+                description="Importá el Excel con las columnas operador, panel, usuario, password, fecha y hora de registro, plataforma y status."
+                action={
+                  <Button size="sm" onClick={() => setImportOpen(true)}>
+                    <Upload /> Importar Excel
+                  </Button>
+                }
+              />
+            </Card>
+          )}
+        </Section>
+
+        {/* --------------------------------------------------------- listado */}
+        <Section title="Cuentas">
+          <Card className="overflow-hidden p-0">
+            <Toolbar>
+              <Field label="Plataforma">
+                <Select
+                  value={plataforma || TODAS}
+                  onValueChange={(v) => {
+                    setPlataforma(v === TODAS ? "" : v)
+                    setPage(1)
+                  }}
+                >
+                  <SelectTrigger size="sm" className="w-[10rem]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODAS}>Todas</SelectItem>
+                    {(stock?.plataformas || []).map((p) => (
+                      <SelectItem key={p.plataforma} value={p.plataforma}>
+                        {p.plataforma}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field label="Estado">
+                <Select
+                  value={status || TODOS}
+                  onValueChange={(v) => {
+                    setStatus(v === TODOS ? "" : (v as AccountStatus))
+                    setPage(1)
+                  }}
+                >
+                  <SelectTrigger size="sm" className="w-[9.5rem]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={TODOS}>Todos</SelectItem>
+                    <SelectItem value="disponible">open (disponible)</SelectItem>
+                    <SelectItem value="entregado">entregado</SelectItem>
+                    <SelectItem value="anulado">anulado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field label="Usuario" className="flex-1 max-w-sm">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle-foreground" />
+                  <Input
+                    value={usuario}
+                    onChange={(e) => {
+                      setUsuario(e.target.value)
+                      setPage(1)
+                    }}
+                    placeholder="buscar usuario"
+                    className="h-8 pl-8"
+                  />
+                </div>
+              </Field>
+
+              <Field label="Teléfono">
+                <Input
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value)
+                    setPage(1)
+                  }}
+                  placeholder="54911…"
+                  className="num h-8 w-[9rem]"
+                />
+              </Field>
+
+              <div className="ml-auto flex items-center gap-2">
+                {hayFiltros && (
+                  <Button variant="ghost" size="sm" onClick={limpiarFiltros}>
+                    <X /> Limpiar
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setVerPasswords((v) => !v)}
+                  title="Mostrar u ocultar contraseñas"
+                >
+                  {verPasswords ? <EyeOff /> : <Eye />}
+                  <span className="hidden lg:inline">
+                    {verPasswords ? "Ocultar claves" : "Ver claves"}
+                  </span>
+                </Button>
+              </div>
+            </Toolbar>
+
+            {listQuery.isLoading ? (
+              <LoadingRows rows={8} cols={6} />
+            ) : listQuery.isError ? (
+              <ErrorState
+                message={(listQuery.error as Error).message}
+                onRetry={() => listQuery.refetch()}
+              />
+            ) : cuentas.length === 0 ? (
+              <EmptyState
+                icon={IdCard}
+                title="No hay cuentas con esos filtros"
+                description={hayFiltros ? "Probá limpiando los filtros." : undefined}
+                action={
+                  hayFiltros ? (
+                    <Button variant="secondary" size="sm" onClick={limpiarFiltros}>
+                      Limpiar filtros
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Usuario</TableHead>
+                    {verPasswords && <TableHead>Contraseña</TableHead>}
+                    <TableHead>Plataforma</TableHead>
+                    <TableHead>Panel</TableHead>
+                    <TableHead>Operador</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Teléfono</TableHead>
+                    <TableHead>Entregada</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cuentas.map((c) => (
+                    <TableRow key={c._id}>
+                      <TableCell className="font-medium">
+                        <CopyValue value={c.usuario}>{c.usuario}</CopyValue>
+                      </TableCell>
+                      {verPasswords && (
+                        <TableCell className="font-mono text-[12px] text-muted-foreground">
+                          {c.password ? <CopyValue value={c.password}>{c.password}</CopyValue> : "—"}
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <Badge variant="outline">{c.plataforma}</Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{c.panel || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">{c.operador || "—"}</TableCell>
+                      <TableCell>
+                        <EstadoBadge status={c.status} />
+                      </TableCell>
+                      <TableCell className="num text-muted-foreground">{c.phone || "—"}</TableCell>
+                      <TableCell className="num text-[12px] text-subtle-foreground">
+                        {fecha(c.deliveredAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          {c.status === "entregado" && (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              title="Liberar: vuelve al pool"
+                              onClick={() => releaseMutation.mutate(c)}
+                              disabled={releaseMutation.isPending}
+                            >
+                              <Undo2 />
+                            </Button>
+                          )}
+                          {c.status !== "anulado" ? (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              title="Anular"
+                              className="hover:text-danger"
+                              onClick={() => statusMutation.mutate({ cuenta: c, nuevo: "anulado" })}
+                              disabled={statusMutation.isPending}
+                            >
+                              <Ban />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              title="Reactivar"
+                              className="hover:text-primary"
+                              onClick={() =>
+                                statusMutation.mutate({ cuenta: c, nuevo: "disponible" })
+                              }
+                              disabled={statusMutation.isPending}
+                            >
+                              <CheckCircle2 />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+
+            {paginacion && paginacion.totalPages > 1 && (
+              <Pagination
+                page={paginacion.currentPage}
+                totalPages={paginacion.totalPages}
+                totalCount={paginacion.totalCount}
+                hasPrev={paginacion.hasPrevPage}
+                hasNext={paginacion.hasNextPage}
+                onPrev={() => setPage((p) => Math.max(1, p - 1))}
+                onNext={() => setPage((p) => p + 1)}
+                unit="cuentas"
+              />
+            )}
+          </Card>
+        </Section>
+      </div>
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        operador={user?.email || undefined}
+        onDone={refrescar}
+      />
+    </AdminShell>
+  )
+}
+
+/* ------------------------------------------------------------ importación */
+
+function ImportDialog({
+  open,
+  onOpenChange,
+  operador,
+  onDone,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  operador?: string
+  onDone: () => void
+}) {
+  const [archivo, setArchivo] = React.useState<File | null>(null)
+  const [resumen, setResumen] = React.useState<ImportSummary | null>(null)
+  const [dragging, setDragging] = React.useState(false)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  const importMutation = useMutation({
+    mutationFn: (file: File) => AccountsService.importFile(file, operador),
+    onSuccess: (data) => {
+      setResumen(data)
+      setArchivo(null)
+      onDone()
+      toast({
+        title: `${data.insertados} cuentas nuevas`,
+        description:
+          data.duplicadosEnBase.length || data.duplicadosEnArchivo.length || data.errores.length
+            ? `${data.duplicadosEnBase.length + data.duplicadosEnArchivo.length} duplicadas · ${
+                data.errores.length
+              } con error`
+            : "Sin duplicados ni errores",
+        variant: "success",
+      })
+    },
+    onError: (error: Error) =>
+      toast({ title: "No se pudo importar", description: error.message, variant: "destructive" }),
+  })
+
+  const elegir = (file?: File | null) => {
+    if (!file) return
+    setArchivo(file)
+    setResumen(null)
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v)
+        if (!v) {
+          setArchivo(null)
+          setResumen(null)
+        }
+      }}
+    >
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Importar cuentas</DialogTitle>
+          <DialogDescription>
+            Columnas requeridas, en cualquier orden:{" "}
+            <span className="text-foreground">
+              operador, panel, usuario, password, fecha y hora de registro, plataforma, status
+            </span>
+            . El status vacío se toma como <span className="text-foreground">open</span> y las filas
+            repetidas se ignoran, así que podés reimportar el mismo archivo sin duplicar nada.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div
+          onDragOver={(e) => {
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragging(false)
+            elegir(e.dataTransfer.files?.[0])
+          }}
+          onClick={() => inputRef.current?.click()}
+          className={cn(
+            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-6 py-10 text-center transition-colors",
+            dragging
+              ? "border-primary bg-primary/8"
+              : "border-border-strong bg-surface-2/40 hover:border-primary/50"
+          )}
+        >
+          <div className="flex size-10 items-center justify-center rounded-lg border border-border bg-surface-2">
+            <FileSpreadsheet className="size-4 text-primary" />
+          </div>
+          {archivo ? (
+            <>
+              <p className="text-[13px] font-medium">{archivo.name}</p>
+              <p className="text-[12px] text-subtle-foreground">
+                {(archivo.size / 1024).toFixed(0)} KB · clic para cambiar
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[13px] font-medium">Arrastrá el archivo acá</p>
+              <p className="text-[12px] text-subtle-foreground">.xlsx o .csv — o hacé clic para elegirlo</p>
+            </>
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+            className="hidden"
+            onChange={(e) => elegir(e.target.files?.[0])}
+          />
+        </div>
+
+        {resumen && (
+          <div className="space-y-3 rounded-lg border border-border bg-surface-2/40 p-4">
+            <div className="grid grid-cols-4 gap-3 text-center">
+              <ResumenItem valor={resumen.insertados} label="nuevas" tone="text-primary" />
+              <ResumenItem
+                valor={resumen.duplicadosEnBase.length + resumen.duplicadosEnArchivo.length}
+                label="duplicadas"
+                tone="text-info"
+              />
+              <ResumenItem valor={resumen.errores.length} label="con error" tone="text-danger" />
+              <ResumenItem valor={resumen.totalFilas} label="filas leídas" />
+            </div>
+
+            {resumen.errores.length > 0 && (
+              <div className="space-y-1.5 border-t border-border pt-3">
+                <p className="flex items-center gap-1.5 text-[12px] font-medium text-warning">
+                  <AlertTriangle className="size-3.5" /> Filas que no entraron
+                </p>
+                <ul className="custom-scrollbar max-h-40 space-y-1 overflow-y-auto text-[12px] text-subtle-foreground">
+                  {resumen.errores.map((e, i) => (
+                    <li key={i} className="num">
+                      Fila {e.fila}: {e.motivo}
+                      {e.usuario ? ` (${e.usuario})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+            {resumen ? "Cerrar" : "Cancelar"}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => archivo && importMutation.mutate(archivo)}
+            disabled={!archivo || importMutation.isPending}
+          >
+            {importMutation.isPending ? (
+              <>
+                <Spinner /> Importando…
+              </>
+            ) : (
+              <>
+                <Download /> Importar cuentas
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function ResumenItem({
+  valor,
+  label,
+  tone,
+}: {
+  valor: number
+  label: string
+  tone?: string
+}) {
+  return (
+    <div>
+      <div className={cn("num text-xl font-semibold leading-none", tone)}>{valor}</div>
+      <div className="mt-1 text-[11px] text-subtle-foreground">{label}</div>
+    </div>
+  )
 }
