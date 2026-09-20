@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Search, MoreVertical, MessageSquare, Archive, Settings, RefreshCw, X, Check, UserPlus, ArrowLeft, Camera, Filter, Trash2 } from "lucide-react"
+import { Search, MoreVertical, MessageSquare, Archive, Settings, RefreshCw, X, Check, UserPlus, ArrowLeft, Camera, Filter, Trash2, Bell, BellOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRooms } from "@/hooks/use-rooms"
 import { useGlobalSocket } from "@/hooks/use-global-socket"
+import { useMessageAlerts } from "@/hooks/use-message-alerts"
 import { cn, getLastMessageTime } from "@/lib/utils"
 import { RoomService } from "@/services/room-service"
 import { ContactService } from "@/services/contacts-service"
@@ -74,6 +75,9 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
   // Hook para el socket global
   const { socket, isConnected } = useGlobalSocket()
 
+  // Avisos al operador: sonido, título de la pestaña y notificación del sistema
+  const { sonidoActivo, alternarSonido, avisar } = useMessageAlerts()
+
   // Debug: monitorear cambios en showArchived
   useEffect(() => {
     console.log('showArchived changed to:', showArchived, '- saved to localStorage')
@@ -105,8 +109,25 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       username: string
       type: string
       timestamp: string
+      sender?: "user" | "admin" | "bot"
+      welcome?: boolean
+      preview?: string
     }) => {
       console.log('Nuevo mensaje recibido globalmente:', data)
+
+      // Sólo avisa lo que escribe el jugador: ni los mensajes del operador ni
+      // los automáticos del bot. `sender` lo agrega la API; si el evento viene
+      // de una versión vieja se cae al username, que al menos separa al bot.
+      const esDelJugador = data.sender ? data.sender === "user" : data.username !== "Admin"
+      if (esDelJugador && !data.welcome) {
+        avisar({
+          roomId: data.roomId,
+          phone: data.phone,
+          username: data.username,
+          preview: data.preview,
+        })
+      }
+
       // Refrescar las rooms silenciosamente para actualizar contadores de mensajes no leídos
       refetchSilently()
     }
@@ -117,7 +138,7 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       console.log('Removiendo listener para global-message-received')
       socket.off('global-message-received', handleGlobalMessageReceived)
     }
-  }, [socket, isConnected, refetchSilently])
+  }, [socket, isConnected, refetchSilently, avisar])
 
   // Transformar rooms del API a la estructura extendida
   const rooms: ExtendedRoom[] = apiRooms.map((room: ApiRoomData) => {
@@ -551,6 +572,24 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
               {showArchived ? "Chats Archivados" : "Chats"}
             </h1>
             <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => { void alternarSonido() }}
+                title={
+                  sonidoActivo
+                    ? "Sonido activado: silenciar los avisos de mensajes nuevos"
+                    : "Sonido silenciado: activar los avisos de mensajes nuevos"
+                }
+                aria-label={sonidoActivo ? "Silenciar avisos" : "Activar avisos"}
+                aria-pressed={sonidoActivo}
+                className={cn(
+                  "hover:bg-[#3b4a54]",
+                  sonidoActivo ? "text-[#00a884]" : "text-[#8696a0]"
+                )}
+              >
+                {sonidoActivo ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+              </Button>
               <Button variant="ghost" size="icon" className="hover:bg-[#3b4a54] text-[#8696a0]">
                 <MessageSquare className="h-5 w-5" />
               </Button>
