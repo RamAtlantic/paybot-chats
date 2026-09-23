@@ -30,7 +30,10 @@ export function socketOn(
   } = data;
   return async () => {
     setConnected(true);
-    socketInstance.emit("join-room", roomId);
+    // Se manda el rol junto al roomId: es lo que le permite a la API saber a
+    // quién se le entregó cada mensaje (el operador escribe con el teléfono
+    // del jugador de username, así que por ahí no se distingue).
+    socketInstance.emit("join-room", { roomId, role: isAdmin ? "admin" : "user" });
     const currentSocketUser = Array.from(users.values()).find(
       (user) => user.socketId === socketInstance.id
     );
@@ -78,7 +81,11 @@ export function socketChatMessage(data: SocketChatMessageData) {
       type: message.type || "text", // Tipo por defecto 'text'
       actions: message.actions || [], // Botones del bot (type: "interactive")
       sendStatus: "sent", // Mensaje confirmado por el servidor
-      read: message.read || false, // Incluir estado de lectura
+      read: message.read || false,
+      sender: message.sender,
+      status: message.status || "sent",
+      deliveredAt: message.deliveredAt ?? null,
+      readAt: message.readAt ?? null,
     };
 
     // Verificar si hay un mensaje local correspondiente para reemplazarlo
@@ -184,7 +191,11 @@ export function sendChatMessage(data: SendChatMessageData) {
       source: "chat",
       type: "text",
       sendStatus: "sending", // Estado inicial: enviando
-      read: isAdmin ? true : false, // Los mensajes de admin se marcan como leídos
+      read: isAdmin ? true : false,
+      sender: isAdmin ? "admin" : "user",
+      status: "sending",
+      deliveredAt: null,
+      readAt: null,
     };
 
     // Agregar mensaje local al estado inmediatamente

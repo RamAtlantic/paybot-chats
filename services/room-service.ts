@@ -60,7 +60,12 @@ export class RoomService {
           // Los mensajes con botones del bot llegan como "interactive"; el resto
           // se sigue tratando como texto (las imágenes se detectan por la URL).
           type: msg.type === 'interactive' ? 'interactive' : 'text',
-          actions: msg.actions || []
+          actions: msg.actions || [],
+          // Estado del doble check tal como lo devuelve la API.
+          sender: msg.sender,
+          status: msg.status || 'sent',
+          deliveredAt: msg.deliveredAt ?? null,
+          readAt: msg.readAt ?? null
         }))
 
         // Modify messages if user role is 'user' and NOT in admin mode
