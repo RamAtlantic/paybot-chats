@@ -73,6 +73,12 @@ export function socketChatMessage(data: SocketChatMessageData) {
 
     const unifiedMessage: UnifiedMessage = {
       ...message,
+      // El socket manda el id como `id` y el resto de la app usa `_id`. Sin este
+      // mapeo el mensaje quedaba sin `_id`: el evento `message-status` no
+      // encontraba a quién aplicarle el cambio y el tick nunca pasaba a azul en
+      // vivo (al recargar sí, porque el historial sí lo mapea). De paso, React
+      // se quedaba sin key estable.
+      _id: message._id || message.id || `sin-id-${Date.now()}`,
       username: message.phone || message.username, // Use phone as username
       socketId: message.socketId || currentUser?.socketId || "unknown",
       userId: message.userId || currentUser?._id || "unknown",

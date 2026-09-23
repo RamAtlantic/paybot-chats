@@ -21,6 +21,11 @@ export type MessageSender = 'user' | 'admin'
 
 export interface Message {
     _id: string
+    /**
+     * El socket manda el id con este nombre, no como `_id`. Está declarado para
+     * que se vea: el resto de la app usa `_id` y hay que mapearlo al recibirlo.
+     */
+    id?: string
     content: string
     timestamp: string
     socketId: string
