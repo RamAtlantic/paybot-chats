@@ -132,11 +132,19 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       refetchSilently()
     }
 
+    // El operador leyó una conversación (la tuvo abierta y visible): la API
+    // avisa y se bajan los contadores sin esperar al refetch periódico.
+    const handleRoomRead = () => {
+      refetchSilently()
+    }
+
     socket.on('global-message-received', handleGlobalMessageReceived)
+    socket.on('room-read', handleRoomRead)
 
     return () => {
       console.log('Removiendo listener para global-message-received')
       socket.off('global-message-received', handleGlobalMessageReceived)
+      socket.off('room-read', handleRoomRead)
     }
   }, [socket, isConnected, refetchSilently, avisar])
 

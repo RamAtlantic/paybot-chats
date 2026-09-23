@@ -2,12 +2,23 @@
 
 import Image from "next/image";
 import React, { useState } from "react";
-import { Room, UnifiedMessage, User } from "@/types/chat";
+import { MessageStatus, Room, UnifiedMessage, User } from "@/types/chat";
 import { isOwnMessage } from "@/lib/utils";
 import { SettingsData } from "@/types/settings";
-import { Loader2, X } from "lucide-react";
+import { X } from "lucide-react";
 import MessageActions from "./chat/message-actions";
 import MessageText from "./chat/message-text";
+import MessageTicks from "./chat/message-ticks";
+
+/**
+ * Estado a dibujar: mientras el mensaje es optimista manda `sendStatus`;
+ * después manda el estado real que devuelve la API. Los mensajes viejos, sin
+ * estado, se muestran como enviados.
+ */
+function estadoTicks(message: UnifiedMessage): MessageStatus {
+  if (message.sendStatus === "sending") return "sending";
+  return message.status ?? "sent";
+}
 
 interface MessagesProps {
   room: Room;
@@ -154,44 +165,7 @@ export default function Messages({
                         minute: "2-digit",
                       })}
                     </span>
-                    {isOwn && (
-                      <div className="flex">
-                        {message.sendStatus === "sending" ? (
-                          // Reloj giratorio mientras se envía
-                          <Loader2 className="h-4 w-4 text-[#8696a0] animate-spin" />
-                        ) : message.sendStatus === "sent" ? (
-                          // Checks dobles grises cuando se confirma envío
-                          <svg
-                            width="14"
-                            height="10"
-                            viewBox="0 0 14 10"
-                            className="text-[#8696a0]"
-                          >
-                            <path
-                              fill="currentColor"
-                              d="M4.5 7.5L1.5 4.5L0.5 5.5L4.5 9.5L11.5 2.5L10.5 1.5L4.5 7.5Z"
-                            />
-                            <path
-                              fill="currentColor"
-                              d="M8.5 7.5L5.5 4.5L4.5 5.5L8.5 9.5L15.5 2.5L14.5 1.5L8.5 7.5Z"
-                            />
-                          </svg>
-                        ) : (
-                          // Check gris por defecto (para mensajes antiguos)
-                          <svg
-                            width="16"
-                            height="10"
-                            viewBox="0 0 16 10"
-                            className="text-[#8696a0]"
-                          >
-                            <path
-                              fill="currentColor"
-                              d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.063-.51zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l3.61 3.463c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"
-                            />
-                          </svg>
-                        )}
-                      </div>
-                    )}
+                    {isOwn && <MessageTicks status={estadoTicks(message)} />}
                   </div>
                 </div>
 

@@ -26,6 +26,7 @@ import {
   sendChatMessage,
   sendImageMessage,
 } from "@/lib/socket-metods";
+import { useMessageStatus } from "@/hooks/use-message-status";
 import Messages from "./messages";
 import HeaderChat from "./chat/header-chat";
 import ErrorCard from "./chat/error-chat";
@@ -216,6 +217,16 @@ export default function WhatsAppChat({
       socketInstance.disconnect();
     };
   }, [roomId, users, currentUser, phone, room, isAdmin, messagesRoom]);
+
+  // Doble check real: escucha los cambios de estado y confirma la lectura
+  // cuando esta conversación está abierta y la pestaña visible.
+  useMessageStatus({
+    socket,
+    roomId,
+    isAdmin,
+    messages,
+    setMessages,
+  });
 
   // Función para enviar mensajes
   const sendMessage = sendChatMessage({
