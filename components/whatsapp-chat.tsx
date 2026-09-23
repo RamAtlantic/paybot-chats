@@ -80,6 +80,7 @@ export default function WhatsAppChat({
 
   // instancia de refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -89,8 +90,20 @@ export default function WhatsAppChat({
   );
 
   // función para scrollar al final del chat
+  //
+  // Se scrollea EL CONTENEDOR, no el elemento. `scrollIntoView` recorre todos
+  // los ancestros scrolleables —incluido el documento— así que si la página
+  // tiene aunque sea unos píxeles de scroll, arrastra la ventana entera y el
+  // chat se sube: la barra de escribir termina en el medio de la pantalla.
+  // Se veía cada vez que aparecían los puntitos de "escribiendo…".
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const contenedor = scrollContainerRef.current;
+    if (contenedor) {
+      contenedor.scrollTo({ top: contenedor.scrollHeight, behavior: "smooth" });
+      return;
+    }
+    // Sin el contenedor, `nearest` es lo único que no mueve la ventana.
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
 
   // efecto para scrollar al final del chat
@@ -351,7 +364,7 @@ export default function WhatsAppChat({
 
   return (
     <div
-      className={`h-screen bg-[#0b141a] flex flex-col safe-area ${
+      className={`h-[100dvh] bg-[#0b141a] flex flex-col safe-area ${
         isInIframe
           ? "w-full"
           : onBack
@@ -390,7 +403,10 @@ export default function WhatsAppChat({
             </div>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-4 py-2 custom-scrollbar">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 min-h-0 overflow-y-auto px-4 py-2 custom-scrollbar"
+        >
           {messages.length === 0 ? (
             <EmptyChat />
           ) : (
