@@ -2,25 +2,42 @@
 
 import { ArrowUpRight } from "lucide-react"
 
-import { linkWhatsApp, mensajeDesdeChat } from "@/lib/whatsapp"
+import { linkWhatsApp, mensajeDesdeChat, plataformaDeRoom } from "@/lib/whatsapp"
 import WhatsAppIcon from "./whatsapp-icon"
 import { SettingsData } from "@/types/settings"
+import { Room } from "@/types/chat"
 
 /**
  * Barra fija debajo del header del chat del jugador: siempre visible, lleva a
  * WhatsApp con el número cargado en Ajustes y un mensaje ya escrito.
  * No se muestra del lado del operador ni si el perfil no tiene teléfono.
+ *
+ * Si la automation ya le entregó una cuenta, el usuario viaja adentro del
+ * mensaje: del otro lado, quien atiende por WhatsApp sabe con quién habla sin
+ * tener que preguntarlo ni buscarlo.
  */
 export default function WhatsAppCta({
   settings,
   isAdmin,
+  room,
 }: {
   settings?: SettingsData | null
   isAdmin?: boolean
+  room?: Room | null
 }) {
   if (isAdmin) return null
 
-  const href = linkWhatsApp(settings?.phone, mensajeDesdeChat(settings?.displayName))
+  // `accountId` lo deja la automation al entregar la cuenta; `username` de la
+  // room pasa a ser el usuario de la plataforma.
+  const usuario = room?.accountId ? room?.username?.trim() : ""
+  const cuenta = usuario
+    ? { usuario, plataforma: plataformaDeRoom(room?.tags) }
+    : undefined
+
+  const href = linkWhatsApp(
+    settings?.phone,
+    mensajeDesdeChat(settings?.displayName, cuenta)
+  )
   if (!href) return null
 
   return (
@@ -39,7 +56,9 @@ export default function WhatsAppCta({
           Escribinos por WhatsApp
         </span>
         <span className="block truncate text-[12px] leading-tight text-[#8696a0]">
-          {settings?.displayName
+          {usuario
+            ? `Vas identificado como ${usuario}`
+            : settings?.displayName
             ? `Seguí la conversación con ${settings.displayName}`
             : "Seguí la conversación desde tu teléfono"}
         </span>

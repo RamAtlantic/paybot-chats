@@ -380,7 +380,7 @@ export default function WhatsAppChat({
         socket={socket}
       />
 
-      <WhatsAppCta settings={settings} isAdmin={isAdmin} />
+      <WhatsAppCta settings={settings} isAdmin={isAdmin} room={room} />
 
       <div
         ref={dropZoneRef}
