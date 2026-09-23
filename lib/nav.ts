@@ -1,4 +1,5 @@
 import {
+  Bot,
   IdCard,
   LayoutDashboard,
   Link2,
@@ -70,6 +71,17 @@ export const navGroups: NavGroup[] = [
         href: "/admin/invite",
         icon: Link2,
         exact: true,
+      },
+    ],
+  },
+  {
+    label: "Agente",
+    items: [
+      {
+        label: "Agente IA",
+        description: "Respuestas automáticas con Claude",
+        href: "/agente",
+        icon: Bot,
       },
     ],
   },
