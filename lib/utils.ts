@@ -30,33 +30,35 @@ export const generateAvatar = (phone: string, username?: string) => {
   }
 }
 
-export const isOwnMessage = (message: UnifiedMessage, phone: string | null, isAdmin: boolean | undefined) => {
-  // En una sala de chat entre admin y user:
-  // - Admin: solo sus mensajes (con su socketId) son propios
-  // - User: todos los mensajes que NO tengan el socketId actual son propios
-  //        (mensajes históricos suyos + mensajes de WhatsApp sin socketId)
-  // - Todos los mensajes que coincidan con el phone del usuario actual son propios
+export const isOwnMessage = (
+  message: UnifiedMessage,
+  _phone: string | null,
+  isAdmin: boolean | undefined
+) => {
+  // `sender` lo pone la API para TODOS los mensajes: los nuevos lo traen
+  // guardado y los viejos se deducen server-side. Es lo único que no depende
+  // del socket ni del teléfono.
+  //
+  // Antes esto se resolvía comparando el `phone` del mensaje con el de la URL.
+  // Cuando alguien salía y volvía a entrar por el mismo link, el socket cambiaba
+  // y bastaba con que el `phone` guardado no coincidiera —porque el link venía
+  // sin el parámetro, por ejemplo— para que TODA la conversación, incluidos sus
+  // propios mensajes de antes, se dibujara del lado del operador.
+  if (message.sender === "admin") return Boolean(isAdmin);
+  if (message.sender === "user") return !isAdmin;
 
-  // Si el mensaje tiene el mismo phone que el usuario actual, es propio
-  if (message.phone === phone) {
-    return true
+  // Los de WhatsApp (Wati) no tienen `sender`: entran siempre del lado del
+  // jugador, porque el webhook sólo guarda lo que llega.
+  if (message.source === "whatsapp" || message.messageType === "whatsapp") {
+    return !isAdmin;
   }
 
-  if (isAdmin) {
-    // Admin solo ve como propios los mensajes que envió él mismo
-    return message.phone === phone || message.username === "Admin"
-  } else {
-   
-    if (message.phone === phone) {
-      return true
-    } 
-    // User ve como propios todos los mensajes que no sean del socket actual
-    // (que sería del admin si está conectado)
-    return message.phone === phone
-  }
-}
-
-
+  // Último recurso, para cualquier mensaje anterior a todo esto: la identidad
+  // con la que siempre escribió el operador.
+  const esDelOperador =
+    message.username === "Admin" || message.socketId === "automation";
+  return isAdmin ? esDelOperador : !esDelOperador;
+};
 
 export const handleKeyPress = (e: React.KeyboardEvent, sendMessage: () => void) => {
   if (e.key === "Enter" && !e.shiftKey) {

@@ -219,7 +219,11 @@ export async function sendWelcomeMessage(data: {
 
   return async () => {
     if (!socket || !socket.id) return;
-    if (messagesRoom && messagesRoom.length > 0) return;
+    // Sólo si SABEMOS que la sala está vacía. `messagesRoom` en null significa
+    // que el historial todavía no cargó, y eso pasa justo en cada reconexión:
+    // con la guarda vieja, después de un deploy volvía a salir la bienvenida.
+    // El servidor igual tiene el candado definitivo; esto evita el viaje.
+    if (!Array.isArray(messagesRoom) || messagesRoom.length > 0) return;
 
     try {
       // Obtener el mensaje de bienvenida desde los settings
