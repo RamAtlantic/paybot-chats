@@ -1,6 +1,7 @@
 import {
   Bot,
   IdCard,
+  Inbox,
   LayoutDashboard,
   Link2,
   MessagesSquare,
@@ -47,6 +48,12 @@ export const navGroups: NavGroup[] = [
         description: "Pool de cuentas por plataforma",
         href: "/registros",
         icon: IdCard,
+      },
+      {
+        label: "Bandeja",
+        description: "Lo que el agente dejó para revisar",
+        href: "/bandeja",
+        icon: Inbox,
       },
     ],
   },

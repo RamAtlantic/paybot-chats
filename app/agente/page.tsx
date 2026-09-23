@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  CalendarClock,
   Clock,
   Cpu,
   History,
@@ -30,7 +31,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/context/auth-provider"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { AgentService, type AgentConfig, type AgentRun } from "@/services/agent-service"
+import {
+  AgentService,
+  DIAS_SEMANA,
+  type AgentConfig,
+  type AgentRun,
+  type HorariosAtencion,
+} from "@/services/agent-service"
 
 /** Qué significa cada variable que puede faltar del lado del servidor. */
 const EXPLICACION_FALTANTES: Record<string, string> = {
@@ -76,12 +83,17 @@ export default function AgentePage() {
   const [modelo, setModelo] = React.useState("")
   const [maxTokens, setMaxTokens] = React.useState("1024")
   const [systemPrompt, setSystemPrompt] = React.useState("")
+  const [horarios, setHorarios] = React.useState<HorariosAtencion>({
+    zona: "America/Argentina/Buenos_Aires",
+    dias: {},
+  })
 
   const aplicar = React.useCallback((c: AgentConfig) => {
     setConfig(c)
     setModelo(c.modelo)
     setMaxTokens(String(c.maxTokens))
     setSystemPrompt(c.systemPrompt)
+    setHorarios(c.businessHours || { zona: "America/Argentina/Buenos_Aires", dias: {} })
     setKeyNueva("")
     setCambiandoKey(!c.claudeKeyConfigurada)
     setSucio(false)
@@ -118,6 +130,7 @@ export default function AgentePage() {
         modelo: modelo.trim(),
         maxTokens: Number(maxTokens) || 1024,
         systemPrompt,
+        businessHours: horarios,
         por: user?.email || undefined,
       })
       aplicar(c)
@@ -441,6 +454,48 @@ export default function AgentePage() {
                 ))}
               </ul>
             )}
+          </CardContent>
+        </Card>
+
+        {/* ------------------------------------------------ horarios */}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarClock className="size-4" /> Horarios de atención
+                </CardTitle>
+                <CardDescription>
+                  Para que el agente sepa si estamos abiertos, no para recitar un texto. Vacío = ese
+                  día cerrado. Se aceptan dos tramos: <code>09:00-13:00, 17:00-23:00</code>.
+                </CardDescription>
+              </div>
+              {config?.abiertoAhora !== null && config?.abiertoAhora !== undefined && (
+                <Badge variant={config.abiertoAhora ? "success" : "secondary"}>
+                  {config.abiertoAhora ? "abierto ahora" : "cerrado ahora"}
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {DIAS_SEMANA.map((dia) => (
+              <div key={dia} className="space-y-1.5">
+                <Label htmlFor={`dia-${dia}`} className="capitalize">
+                  {dia}
+                </Label>
+                <Input
+                  id={`dia-${dia}`}
+                  placeholder="cerrado"
+                  spellCheck={false}
+                  value={horarios.dias?.[dia] || ""}
+                  onChange={(e) =>
+                    tocar(() =>
+                      setHorarios((h) => ({ ...h, dias: { ...h.dias, [dia]: e.target.value } }))
+                    )
+                  }
+                />
+              </div>
+            ))}
           </CardContent>
         </Card>
 

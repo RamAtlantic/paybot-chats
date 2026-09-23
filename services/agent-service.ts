@@ -20,7 +20,26 @@ export interface AgentConfig {
   listoParaActivar: boolean
   /** Variables que faltan en el servidor para que el agente pueda hablar. */
   faltantes: string[]
+  /** Horarios de atención. null = sin configurar, y el agente no opina. */
+  businessHours: HorariosAtencion | null
+  horariosTexto: string | null
+  abiertoAhora: boolean | null
 }
+
+export interface HorariosAtencion {
+  zona: string
+  dias: Record<string, string>
+}
+
+export const DIAS_SEMANA = [
+  "lunes",
+  "martes",
+  "miercoles",
+  "jueves",
+  "viernes",
+  "sabado",
+  "domingo",
+] as const
 
 export interface GuardarConfig {
   claudeApiKey?: string
@@ -29,6 +48,7 @@ export interface GuardarConfig {
   systemPrompt?: string
   activo?: boolean
   por?: string
+  businessHours?: HorariosAtencion | null
 }
 
 export interface TestResultado {
