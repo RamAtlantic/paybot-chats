@@ -32,3 +32,6 @@ yarn-error.log*
 .idea/
 .claude/
 .vercel
+
+# Cache de tsc: se regenera solo y ensucia todos los diffs.
+tsconfig.tsbuildinfo
