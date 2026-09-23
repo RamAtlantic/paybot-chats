@@ -1,5 +1,7 @@
 import {
+  Bot,
   IdCard,
+  Inbox,
   LayoutDashboard,
   Link2,
   MessagesSquare,
@@ -47,6 +49,12 @@ export const navGroups: NavGroup[] = [
         href: "/registros",
         icon: IdCard,
       },
+      {
+        label: "Bandeja",
+        description: "Lo que el agente dejó para revisar",
+        href: "/bandeja",
+        icon: Inbox,
+      },
     ],
   },
   {
@@ -70,6 +78,17 @@ export const navGroups: NavGroup[] = [
         href: "/admin/invite",
         icon: Link2,
         exact: true,
+      },
+    ],
+  },
+  {
+    label: "Agente",
+    items: [
+      {
+        label: "Agente IA",
+        description: "Respuestas automáticas con Claude",
+        href: "/agente",
+        icon: Bot,
       },
     ],
   },
