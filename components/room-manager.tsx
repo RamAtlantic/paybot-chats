@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Search, MoreVertical, MessageSquare, Archive, Settings, RefreshCw, X, Check, UserPlus, ArrowLeft, Camera, Filter, Trash2, Bell, BellOff } from "lucide-react"
+import { Search, MoreVertical, MessageSquare, Archive, Settings, RefreshCw, X, Check, UserPlus, ArrowLeft, Camera, Filter, Trash2, Bell, BellOff, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRooms } from "@/hooks/use-rooms"
 import { useGlobalSocket } from "@/hooks/use-global-socket"
@@ -17,7 +17,7 @@ import { RoomService } from "@/services/room-service"
 import { ContactService } from "@/services/contacts-service"
 import { ContactRequest } from "@/types/contact"
 import { WhatsAppAvatar } from "@/lib/utils-render"
-import { ConnectedSocket, ExtendedRoom, WhatsAppRoomManagerProps } from "@/types/manager"
+import { ConnectedSocket, EscaladoInfo, ExtendedRoom, WhatsAppRoomManagerProps } from "@/types/manager"
 
 // Interfaz temporal para rooms del API
 interface ApiRoomData {
@@ -38,6 +38,7 @@ interface ApiRoomData {
   contactId?: string
   username?: string
   tags?: string
+  escalado?: EscaladoInfo | null
   lastMessage?: string
   lastMessageType?: string
   lastMessageSource?: string
@@ -76,7 +77,7 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
   const { socket, isConnected } = useGlobalSocket()
 
   // Avisos al operador: sonido, título de la pestaña y notificación del sistema
-  const { sonidoActivo, alternarSonido, avisar } = useMessageAlerts()
+  const { sonidoActivo, alternarSonido, avisar, avisarEscalamiento } = useMessageAlerts()
 
   // Debug: monitorear cambios en showArchived
   useEffect(() => {
@@ -138,15 +139,49 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       refetchSilently()
     }
 
+    // El agente pasó una conversación a una persona. Este es el único aviso
+    // que suena distinto y notifica aunque el panel esté adelante: alguien
+    // está esperando y nadie lo está atendiendo.
+    const handleRoomEscalated = (data: {
+      roomId: string
+      phone?: string | null
+      username?: string | null
+      motivo?: string | null
+    }) => {
+      avisarEscalamiento({
+        roomId: data.roomId,
+        phone: data.phone,
+        username: data.username,
+        motivo: data.motivo,
+      })
+      toast({
+        title: "⚠️ Conversación derivada al equipo",
+        description: `${data.username || data.phone || "Un jugador"} está esperando: ${data.motivo || "sin motivo"}`,
+        variant: "destructive",
+        duration: 15000,
+      })
+      refetchSilently()
+    }
+
+    // Alguien la abrió: se apaga el rojo en todos los paneles, no sólo en el
+    // del que entró.
+    const handleEscalationCleared = () => {
+      refetchSilently()
+    }
+
     socket.on('global-message-received', handleGlobalMessageReceived)
     socket.on('room-read', handleRoomRead)
+    socket.on('room-escalated', handleRoomEscalated)
+    socket.on('room-escalation-cleared', handleEscalationCleared)
 
     return () => {
       console.log('Removiendo listener para global-message-received')
       socket.off('global-message-received', handleGlobalMessageReceived)
       socket.off('room-read', handleRoomRead)
+      socket.off('room-escalated', handleRoomEscalated)
+      socket.off('room-escalation-cleared', handleEscalationCleared)
     }
-  }, [socket, isConnected, refetchSilently, avisar])
+  }, [socket, isConnected, refetchSilently, avisar, avisarEscalamiento, toast])
 
   // Transformar rooms del API a la estructura extendida
   const rooms: ExtendedRoom[] = apiRooms.map((room: ApiRoomData) => {
@@ -172,6 +207,7 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       lastMessageType: room.lastMessageType,
       unreadCount: room.unreadCount,
       unreadRoom: room.unreadRoom || false, // Asegurar que unreadRoom esté mapeado
+      escalado: room.escalado || null,
       connectedSockets: Array.isArray(room.connectedSockets) && room.connectedSockets.length > 0 && typeof room.connectedSockets[0] === 'string'
           ? (room.connectedSockets as string[]).map((socketId: string) => ({
             socketId,
@@ -198,6 +234,11 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       refetchSilently()
     }
   }
+
+  // Cuántas conversaciones están esperando a una persona. Va arriba del
+  // listado: si el operador filtró o está scrolleando, la fila roja puede
+  // quedar fuera de la vista, y el número no.
+  const derivadas = rooms.filter((room) => Boolean(room.escalado)).length
 
   // Obtener el estado de conexión de una sala
   const getConnectionStatus = (room: ExtendedRoom) => {
@@ -657,6 +698,14 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {derivadas > 0 && (
+                  <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-0.5 font-semibold text-white animate-pulse">
+                    <AlertTriangle className="h-3 w-3" />
+                    {derivadas === 1
+                      ? "1 espera a una persona"
+                      : `${derivadas} esperan a una persona`}
+                  </span>
+                )}
                 <span className="text-[#8696a0]">
                   {pagination ? `${pagination.totalCount} chats ` : "Cargando..."}
                 </span>
@@ -712,6 +761,10 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
                     "flex items-center gap-3 p-3 hover:bg-[#202c33] cursor-pointer transition-colors",
                     selectedRoom?.id === room.id && "bg-[#2a3942]",
                     room.unreadRoom && "bg-orange-500/30 border-l-4 border-orange-500 shadow-md ring-1 ring-orange-500/20",
+                    // El rojo va último para que le gane al naranja de "sin
+                    // leer": una derivada sin leer es, antes que nada, una
+                    // derivada.
+                    room.escalado && "bg-red-600/25 border-l-4 border-red-500 shadow-md ring-1 ring-red-500/40",
                   )}
                 >
                   {/* Avatar con indicador de conexión */}
@@ -752,6 +805,12 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
                           >
                             {room.username || room.phone}
                           </h3>
+                          {room.escalado && (
+                            <Badge className="text-xs bg-red-600 hover:bg-red-600 text-white border-none px-2 py-0.5 gap-1 animate-pulse">
+                              <AlertTriangle className="h-3 w-3" />
+                              Derivado
+                            </Badge>
+                          )}
                           {room.unreadRoom && (
                             <Badge className="text-xs bg-orange-500 hover:bg-orange-600 text-white border-none px-2 py-0.5">
                               Sin leer
@@ -776,6 +835,16 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
                     <div className="flex items-start justify-between">
                       {renderLastMessage(room)}
                     </div>
+
+                    {/* Por qué se derivó: sin esto el operador abre a ciegas. */}
+                    {room.escalado && (
+                      <p className="mt-0.5 flex items-start gap-1 text-xs font-medium text-red-300">
+                        <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                        <span className="truncate">
+                          {room.escalado.motivo || "El agente la pasó al equipo"}
+                        </span>
+                      </p>
+                    )}
 
                     {/* Tags */}
                     <div className="flex items-center gap-1 mt-1">

@@ -1,3 +1,15 @@
+/**
+ * Lo que deja el agente cuando pasa una conversación a una persona. Vive en la
+ * room (no sólo en el socket) para que el aviso siga estando aunque el
+ * operador no tuviera el panel abierto en ese momento.
+ */
+export interface EscaladoInfo {
+  at: string
+  motivo?: string
+  taskId?: string | null
+  por?: string
+}
+
 export interface ConnectedSocket {
     socketId: string
     role: string
@@ -29,6 +41,8 @@ export interface ConnectedSocket {
     lastMessageType?: string
     unreadCount?: number
     unreadRoom?: boolean
+    /** Derivada al equipo por el agente y todavía sin abrir. */
+    escalado?: EscaladoInfo | null
   }
   
   export interface WhatsAppRoomManagerProps {

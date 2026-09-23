@@ -30,6 +30,13 @@ export interface AvisoMensaje {
   preview?: string
 }
 
+export interface AvisoEscalamiento {
+  roomId: string
+  phone?: string | null
+  username?: string | null
+  motivo?: string | null
+}
+
 type PermisoNotificacion = "default" | "granted" | "denied" | "unsupported"
 
 /** El documento de la pestaña real, no el del iframe. */
@@ -120,6 +127,41 @@ export function useMessageAlerts() {
       vol.connect(ctx.destination)
       osc.start(t0)
       osc.stop(t0 + nota.duracion + 0.02)
+    }
+  }, [contextoAudio])
+
+  /**
+   * El del escalamiento es otro sonido a propósito: más grave, tres golpes y
+   * más fuerte. Si suena igual que un mensaje cualquiera, el operador lo
+   * archiva como un mensaje cualquiera, que es justo lo que no queremos.
+   */
+  const reproducirAlarma = useCallback(() => {
+    const ctx = contextoAudio()
+    if (!ctx) return
+    if (ctx.state === "suspended") void ctx.resume()
+
+    const ahora = ctx.currentTime
+    const notas = [
+      { frecuencia: 660, inicio: 0 },
+      { frecuencia: 660, inicio: 0.22 },
+      { frecuencia: 523.25, inicio: 0.44 },
+    ]
+
+    for (const nota of notas) {
+      const osc = ctx.createOscillator()
+      const vol = ctx.createGain()
+      osc.type = "triangle"
+      osc.frequency.value = nota.frecuencia
+
+      const t0 = ahora + nota.inicio
+      vol.gain.setValueAtTime(0.0001, t0)
+      vol.gain.exponentialRampToValueAtTime(0.4, t0 + 0.02)
+      vol.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.2)
+
+      osc.connect(vol)
+      vol.connect(ctx.destination)
+      osc.start(t0)
+      osc.stop(t0 + 0.24)
     }
   }, [contextoAudio])
 
@@ -266,6 +308,56 @@ export function useMessageAlerts() {
     }
   }, [])
 
+  /**
+   * A diferencia de la de un mensaje, ésta sale **aunque el operador tenga la
+   * pestaña adelante**: puede estar mirando Registros o Ajustes, y entonces la
+   * fila roja del listado no la ve nadie. `requireInteraction` la deja hasta
+   * que la cierren, no se va sola a los cuatro segundos.
+   */
+  const notificarEscalamiento = useCallback((aviso: AvisoEscalamiento) => {
+    if (typeof window === "undefined" || !("Notification" in window)) return
+    if (Notification.permission !== "granted") return
+    try {
+      const quien = aviso.username || aviso.phone || "un jugador"
+      const notificacion = new Notification(`⚠️ ${quien} necesita una persona`, {
+        body: aviso.motivo || "El agente derivó la conversación al equipo",
+        tag: `escalado-${aviso.roomId}`,
+        icon: "/logo.png",
+        requireInteraction: true,
+      })
+      notificacion.onclick = () => {
+        try {
+          window.top?.focus()
+        } catch {
+          window.focus()
+        }
+        notificacion.close()
+      }
+    } catch {
+      /* ignorado */
+    }
+  }, [])
+
+  /** El título parpadea con el aviso de escalamiento, esté o no oculta la pestaña. */
+  const parpadearAtencion = useCallback(() => {
+    const doc = documentoDePestania()
+    try {
+      if (tituloOriginalRef.current === null) tituloOriginalRef.current = doc.title
+      if (intervaloRef.current) return
+      let alterno = false
+      intervaloRef.current = setInterval(() => {
+        alterno = !alterno
+        try {
+          doc.title = alterno ? "⚠️ Conversación derivada" : tituloOriginalRef.current ?? doc.title
+        } catch {
+          /* ignorado */
+        }
+      }, TITULO_INTERVALO_MS)
+    } catch {
+      /* ignorado */
+    }
+  }, [])
+
   // --------------------------------------------------------------- público
 
   /** Se llama una vez por mensaje de jugador. */
@@ -276,6 +368,19 @@ export function useMessageAlerts() {
       notificar(aviso)
     },
     [notificar, parpadearTitulo, reproducirTono]
+  )
+
+  /**
+   * El agente pasó una conversación a una persona. Suena distinto, notifica
+   * aunque el panel esté adelante y deja el título parpadeando.
+   */
+  const avisarEscalamiento = useCallback(
+    (aviso: AvisoEscalamiento) => {
+      if (sonidoActivoRef.current) reproducirAlarma()
+      parpadearAtencion()
+      notificarEscalamiento(aviso)
+    },
+    [notificarEscalamiento, parpadearAtencion, reproducirAlarma]
   )
 
   const alternarSonido = useCallback(async () => {
@@ -303,5 +408,6 @@ export function useMessageAlerts() {
     permisoNotificaciones: permiso,
     pedirPermisoNotificaciones: pedirPermiso,
     avisar,
+    avisarEscalamiento,
   }
 }
