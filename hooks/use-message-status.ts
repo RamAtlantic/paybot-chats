@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { Socket } from "socket.io-client";
 import type { MessageStatus, UnifiedMessage } from "@/types/chat";
 
@@ -9,6 +9,16 @@ interface MessageStatusEvent {
   ids: string[];
   status: MessageStatus;
   at: string;
+}
+
+/**
+ * Quién escribió el mensaje. Los mensajes viejos (y los que vienen de
+ * WhatsApp) no traen `sender`, así que se deduce.
+ */
+function senderDe(m: UnifiedMessage): "admin" | "user" {
+  if (m.sender === "admin" || m.sender === "user") return m.sender;
+  if (m.source === "automation" || m.username === "Admin") return "admin";
+  return "user";
 }
 
 interface UseMessageStatusParams {
@@ -78,19 +88,17 @@ export function useMessageStatus({
   }, [socket, roomId, setMessages]);
 
   // ------------------------------------------------- 2. confirmar la lectura
-  // ¿Hay algo del otro lado sin leer? Se guarda en un ref para que los
-  // listeners de foco no trabajen con una foto vieja de los mensajes.
-  const hayPendientes = messages.some(
-    (m) => m.sender && m.sender !== rol && m.status !== "read"
-  );
-  const pendientesRef = useRef(hayPendientes);
-  pendientesRef.current = hayPendientes;
+  // Cuántos mensajes hay del otro lado. No importa si ya figuran como leídos:
+  // el bot puede haberlos marcado (pone los ticks azules) y eso NO baja el
+  // badge de sin leer del panel, que sólo baja cuando mira una persona. Si se
+  // condiciona el aviso a que queden pendientes, las conversaciones que
+  // atendió el bot se quedan con el globito verde para siempre.
+  const entrantes = messages.filter((m) => senderDe(m) !== rol).length;
 
   useEffect(() => {
     if (!socket || !roomId) return;
 
     const marcarLeido = () => {
-      if (!pendientesRef.current) return;
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       socket.emit("mark-read", { roomId, role: rol });
     };
@@ -104,5 +112,5 @@ export function useMessageStatus({
       document.removeEventListener("visibilitychange", marcarLeido);
       window.removeEventListener("focus", marcarLeido);
     };
-  }, [socket, roomId, rol, hayPendientes]);
+  }, [socket, roomId, rol, entrantes]);
 }

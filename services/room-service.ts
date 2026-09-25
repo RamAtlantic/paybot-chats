@@ -198,6 +198,31 @@ export class RoomService {
     }
   }
 
+  /**
+   * Avisar a la API que el operador abrió la conversación: baja el badge de
+   * sin leer. El camino normal es el socket (`mark-read`) desde el chat; esto
+   * cubre el momento en que se hace click en la sala, antes de que el iframe
+   * del chat levante su socket.
+   */
+  static async markRoomRead(roomId: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.messages}/${roomId}/read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role: 'admin' }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+    } catch (error) {
+      // No rompe la apertura del chat: el socket lo vuelve a intentar.
+      console.error("Error marcando la sala como leída:", error)
+    }
+  }
+
   // funcion para archivar una sala
   static async archiveRoom(roomId: string): Promise<{ success: boolean; message: string; roomId: string; archivedAt: Date }> {
     try {

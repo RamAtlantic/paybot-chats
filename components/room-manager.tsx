@@ -62,6 +62,9 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
   const [iframeRefreshKey, setIframeRefreshKey] = useState<number>(0)
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false)
   const [roomToDelete, setRoomToDelete] = useState<ExtendedRoom | null>(null)
+  // Salas que el operador acaba de abrir. Se bajan los contadores en el acto,
+  // sin esperar el refetch, y se vuelven a mostrar si entra un mensaje nuevo.
+  const [leidasLocal, setLeidasLocal] = useState<Set<string>>(new Set())
   const [showArchived, setShowArchived] = useState<boolean>(() => {
     // Leer del localStorage si existe
     if (typeof window !== 'undefined') {
@@ -115,6 +118,17 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       preview?: string
     }) => {
       console.log('Nuevo mensaje recibido globalmente:', data)
+
+      // Entró algo nuevo: esta sala vuelve a poder mostrar el contador aunque
+      // el operador la haya abierto hace un rato.
+      if (data.sender !== "admin") {
+        setLeidasLocal((prev) => {
+          if (!prev.has(data.roomId)) return prev
+          const copia = new Set(prev)
+          copia.delete(data.roomId)
+          return copia
+        })
+      }
 
       // Sólo avisa lo que escribe el jugador: ni los mensajes del operador ni
       // los automáticos del bot. `sender` lo agrega la API; si el evento viene
@@ -205,8 +219,8 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
       tags: room.tags,
       lastMessage: room.lastMessage,
       lastMessageType: room.lastMessageType,
-      unreadCount: room.unreadCount,
-      unreadRoom: room.unreadRoom || false, // Asegurar que unreadRoom esté mapeado
+      unreadCount: leidasLocal.has(room.id || room._id || '') ? 0 : room.unreadCount,
+      unreadRoom: leidasLocal.has(room.id || room._id || '') ? false : (room.unreadRoom || false),
       escalado: room.escalado || null,
       connectedSockets: Array.isArray(room.connectedSockets) && room.connectedSockets.length > 0 && typeof room.connectedSockets[0] === 'string'
           ? (room.connectedSockets as string[]).map((socketId: string) => ({
@@ -225,14 +239,27 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
     setShowChat(true)
     onRoomSelected?.(room)
 
-    // Marcar mensajes como leídos cuando se selecciona la sala
-    // Nota: Aquí deberías hacer una llamada a la API para marcar los mensajes como leídos
-    // y luego refrescar las rooms para actualizar el unreadCount
-    if (room.unreadCount && room.unreadCount > 0) {
-      // TODO: Implementar llamada a API para marcar mensajes como leídos
-      // Por ahora, solo refrescamos las rooms para obtener el estado actualizado
-      refetchSilently()
+    // Abrir la conversación es leerla: se baja el contador en el acto y se le
+    // avisa a la API. El chat (iframe) vuelve a confirmarlo por socket, pero
+    // eso tarda y el operador ya está mirando la conversación.
+    const sinLeer = (room.unreadCount ?? 0) > 0 || room.unreadRoom
+
+    if (!sinLeer) return
+
+    setLeidasLocal((prev) => new Set(prev).add(room.id))
+
+    try {
+      await RoomService.markRoomRead(room.id)
+
+      // El globito naranja de "marcada como no leída" a mano también se apaga.
+      if (room.unreadRoom) {
+        await RoomService.updateUnreadRoomStatus(room.id, false)
+      }
+    } catch (error) {
+      console.error("No se pudo marcar la sala como leída:", error)
     }
+
+    refetchSilently()
   }
 
   // Cuántas conversaciones están esperando a una persona. Va arriba del
@@ -319,7 +346,21 @@ export function WhatsAppRoomManager({ onRoomSelected, initialRoomId, initialPhon
 
       console.log('Cambiando unreadRoom a:', newUnreadStatus)
 
+      // Si se la vuelve a marcar sin leer a mano, se saca del override local
+      // de "recién abierta": si no, el naranja no aparecería.
+      setLeidasLocal((prev) => {
+        const copia = new Set(prev)
+        if (newUnreadStatus) copia.delete(room.id)
+        else copia.add(room.id)
+        return copia
+      })
+
       await RoomService.updateUnreadRoomStatus(room.id, newUnreadStatus)
+
+      // Marcarla como leída a mano también baja el contador de mensajes.
+      if (!newUnreadStatus) {
+        await RoomService.markRoomRead(room.id)
+      }
 
       toast({
         title: newUnreadStatus ? "Sala marcada como no leída" : "Sala marcada como leída",
