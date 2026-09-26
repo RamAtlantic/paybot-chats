@@ -2,8 +2,13 @@
 
 import { ArrowUpRight, Check, Lock } from "lucide-react"
 
-import { linkWhatsApp, mensajeDesdeChat, plataformaDeRoom } from "@/lib/whatsapp"
-import { isOwnMessage } from "@/lib/utils"
+import {
+  hayComprobante,
+  linkWhatsApp,
+  mensajeDesdeChat,
+  plataformaDeRoom,
+  tieneCuentaEntregada,
+} from "@/lib/whatsapp"
 import WhatsAppIcon from "./whatsapp-icon"
 import { SettingsData } from "@/types/settings"
 import { Room, UnifiedMessage } from "@/types/chat"
@@ -38,16 +43,9 @@ export default function WhatsAppCta({
 
   // `accountId` lo deja la automation al entregar la cuenta; `username` de la
   // room pasa a ser el usuario de la plataforma.
-  const usuario = room?.accountId ? room?.username?.trim() : ""
-  const tieneUsuario = Boolean(usuario)
-
-  // El comprobante es cualquier imagen que haya subido el jugador. Se mira el
-  // historial completo que ya vino de la API, así que el acceso sigue abierto
-  // si cierra y vuelve a entrar por el mismo link.
-  const tieneComprobante = (messages ?? []).some(
-    (mensaje) =>
-      mensaje.type === "image" && isOwnMessage(mensaje, mensaje.phone ?? null, false)
-  )
+  const tieneUsuario = tieneCuentaEntregada(room)
+  const usuario = tieneUsuario ? room?.username?.trim() ?? "" : ""
+  const tieneComprobante = hayComprobante(messages)
 
   const cuenta = usuario
     ? { usuario, plataforma: plataformaDeRoom(room?.tags) }

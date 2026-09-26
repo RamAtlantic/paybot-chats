@@ -26,6 +26,7 @@ import {
   sendChatMessage,
   sendImageMessage,
 } from "@/lib/socket-metods";
+import { accesoWhatsAppHabilitado } from "@/lib/whatsapp";
 import { useMessageStatus } from "@/hooks/use-message-status";
 import Messages from "./messages";
 import HeaderChat from "./chat/header-chat";
@@ -173,6 +174,13 @@ export default function WhatsAppChat({
   const roomVisible = useMemo(
     () => (room ? { ...room, ...(roomPatch ?? {}) } : null),
     [room, roomPatch]
+  );
+
+  // La misma regla para el ícono del header y para la barra de abajo: los dos
+  // se abren en el mismo momento.
+  const whatsappHabilitado = useMemo(
+    () => accesoWhatsAppHabilitado(roomVisible, [...messages, ...localMessages]),
+    [roomVisible, messages, localMessages]
   );
 
   // Conectar al socket
@@ -412,6 +420,7 @@ export default function WhatsAppChat({
         room={salaEnPantalla}
         connectedUsers={connectedUsers}
         socket={socket}
+        whatsappHabilitado={whatsappHabilitado}
       />
 
       <WhatsAppCta

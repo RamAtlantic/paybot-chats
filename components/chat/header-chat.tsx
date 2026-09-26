@@ -18,6 +18,8 @@ interface HeaderChatProps {
   room: Room;
   connectedUsers: ConnectedSocket[];
   socket: Socket | null;
+  /** Del lado del jugador: si ya cumplió usuario + primer comprobante. */
+  whatsappHabilitado?: boolean;
 }
 
 export default function HeaderChat({
@@ -26,6 +28,7 @@ export default function HeaderChat({
   room,
   connectedUsers,
   socket,
+  whatsappHabilitado,
 }: HeaderChatProps) {
   const { data: settings } = useSettings();
   const { toast } = useToast();
@@ -149,6 +152,7 @@ export default function HeaderChat({
                 room={room}
                 adminphone={settings?.phone || ""}
                 displayName={settings?.displayName}
+                whatsappHabilitado={whatsappHabilitado}
               />
             </div>
           </div>

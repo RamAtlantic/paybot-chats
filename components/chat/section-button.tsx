@@ -7,7 +7,20 @@ import { ContactService } from "@/services/contacts-service";
 import { useToast } from "@/hooks/use-toast";
 import { linkWhatsApp, mensajeDesdeChat, plataformaDeRoom } from "@/lib/whatsapp";
 
-const SectionButton = ({ isAdmin, room, adminphone, displayName }: { isAdmin: boolean, room: Room, adminphone: string, displayName?: string }) => {
+const SectionButton = ({
+  isAdmin,
+  room,
+  adminphone,
+  displayName,
+  whatsappHabilitado,
+}: {
+  isAdmin: boolean
+  room: Room
+  adminphone: string
+  displayName?: string
+  /** Del lado del jugador: si ya cumplió usuario + primer comprobante. */
+  whatsappHabilitado?: boolean
+}) => {
   const [isAddingContact, setIsAddingContact] = useState(false);
   const { toast } = useToast();
 
@@ -48,7 +61,11 @@ const SectionButton = ({ isAdmin, room, adminphone, displayName }: { isAdmin: bo
 
   return (
     <div className="flex items-center gap-2">
-      {linkWhatsApp(adminphone) && (
+      {/* Al jugador se le oculta hasta que desbloquea el acceso: si no, tenía
+          acá un atajo para irse a WhatsApp sin pasar por la automation, que es
+          justo lo que la barra de abajo está pidiendo que haga. El operador lo
+          ve siempre. */}
+      {(isAdmin || whatsappHabilitado) && linkWhatsApp(adminphone) && (
         <Button
           onClick={() => {
             // Si la automation ya le entregó una cuenta, el mensaje de WhatsApp
