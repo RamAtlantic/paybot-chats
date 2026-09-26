@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Send, Mic } from "lucide-react";
 import type React from "react";
@@ -62,6 +62,11 @@ export default function WhatsAppChat({
   const [socket, setSocket] = useState<Socket | null>(null);
   const [messages, setMessages] = useState<UnifiedMessage[]>([]);
   const [room, setRoom] = useState<Room | null>(null);
+  // Cambios que la API avisa por socket (hoy: la cuenta que entrega la
+  // automation). Van aparte de `room` a propósito: `room` es dependencia del
+  // efecto del socket, así que meterlos ahí reconectaría el socket justo en el
+  // momento en que el jugador está recibiendo sus credenciales.
+  const [roomPatch, setRoomPatch] = useState<Partial<Room> | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [connected, setConnected] = useState(false);
   const [connectedSockets, setConnectedSockets] = useState<ConnectedSocket[]>(
@@ -158,6 +163,18 @@ export default function WhatsAppChat({
     }
   }, [roomData, roomDataError]);
 
+  // Otra conversación no hereda la cuenta de la anterior.
+  useEffect(() => {
+    setRoomPatch(null);
+  }, [roomId]);
+
+  // La room como la ve la pantalla: lo que vino de la API más lo que avisó el
+  // socket después.
+  const roomVisible = useMemo(
+    () => (room ? { ...room, ...(roomPatch ?? {}) } : null),
+    [room, roomPatch]
+  );
+
   // Conectar al socket
   useEffect(() => {
     const socketInstance = io(API_ENDPOINTS.socket, {
@@ -222,6 +239,19 @@ export default function WhatsAppChat({
         apagarTipeo = setTimeout(() => setBotEscribiendo(false), 25000);
       }
     });
+
+    // La automation entrega la cuenta y cambia la room del lado del servidor.
+    // La room se pide una sola vez al entrar, así que sin este aviso el jugador
+    // tenía que recargar para que la UI se enterara de que ya tiene usuario.
+    socketInstance.on(
+      "room-updated",
+      (data: Partial<Room> & { roomId?: string }) => {
+        if (!data) return;
+        if (data.roomId && data.roomId !== roomId) return;
+        const { roomId: _sala, ...cambios } = data;
+        setRoomPatch((previo) => ({ ...previo, ...cambios }));
+      }
+    );
 
     setSocket(socketInstance);
 
@@ -362,6 +392,10 @@ export default function WhatsAppChat({
     return <NotFound />;
   }
 
+  // Después del guard, `room` ya no es null: el `??` es para que TypeScript lo
+  // sepa, no porque `roomVisible` pueda faltar acá.
+  const salaEnPantalla = roomVisible ?? room;
+
   return (
     <div
       className={`h-[100dvh] bg-[#0b141a] flex flex-col safe-area ${
@@ -375,7 +409,7 @@ export default function WhatsAppChat({
       <HeaderChat
         isAdmin={isAdmin}
         phone={phone}
-        room={room}
+        room={salaEnPantalla}
         connectedUsers={connectedUsers}
         socket={socket}
       />
@@ -383,7 +417,7 @@ export default function WhatsAppChat({
       <WhatsAppCta
         settings={settings}
         isAdmin={isAdmin}
-        room={room}
+        room={salaEnPantalla}
         messages={[...messages, ...localMessages]}
       />
 
@@ -416,7 +450,7 @@ export default function WhatsAppChat({
             <EmptyChat />
           ) : (
             <Messages
-              room={room}
+              room={salaEnPantalla}
               settings={settings}
               messages={messages}
               localMessages={localMessages}
