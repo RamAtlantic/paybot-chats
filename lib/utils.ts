@@ -106,3 +106,28 @@ export const formatDate = (dateString: string) => {
     minute: "2-digit",
   });
 };
+/**
+ * Si el mensaje es una imagen.
+ *
+ * Se mira por varios lados a propósito. El `type` es lo que corresponde, pero
+ * no siempre está: los mensajes que vienen de WhatsApp lo traen en
+ * `type_message`, y los viejos del chat se guardaron sin tipo, cuando lo único
+ * que los delataba era que el contenido fuera una URL del CDN. Esto lo usan el
+ * render de la burbuja y la regla que habilita el acceso a WhatsApp: tienen que
+ * estar de acuerdo, o se ve una imagen en pantalla que para la regla no existe.
+ */
+export const esMensajeDeImagen = (mensaje: {
+  type?: string | null
+  type_message?: string | null
+  content?: string | null
+}): boolean => {
+  if (mensaje.type === "image" || mensaje.type_message === "image") return true
+
+  const contenido = (mensaje.content || "").trim()
+  if (!contenido) return false
+
+  const cdn = process.env.NEXT_PUBLIC_PUBLIC_CDN_URL || ""
+  if (cdn && contenido.startsWith(cdn)) return true
+
+  return /^https?:\/\/\S+\.(jpe?g|png|webp|gif|heic|avif)(\?\S*)?$/i.test(contenido)
+}

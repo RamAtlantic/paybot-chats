@@ -57,9 +57,17 @@ export class RoomService {
           messageId: msg.messageId,
           type_message: msg.type,
           source: msg.source,
-          // Los mensajes con botones del bot llegan como "interactive"; el resto
-          // se sigue tratando como texto (las imágenes se detectan por la URL).
-          type: msg.type === 'interactive' ? 'interactive' : 'text',
+          // El tipo que devuelve la API se respeta tal cual.
+          //
+          // Antes acá todo lo que no fuera "interactive" se aplastaba a "text",
+          // y las imágenes se dibujaban igual porque la burbuja las reconocía
+          // por la URL. El día que algo más miró el tipo —la regla que habilita
+          // WhatsApp con el primer comprobante— el comprobante existía en
+          // pantalla pero no en los datos: al recargar, el paso volvía atrás.
+          type:
+            msg.type === 'interactive' || msg.type === 'image'
+              ? msg.type
+              : 'text',
           actions: msg.actions || [],
           // Estado del doble check tal como lo devuelve la API.
           sender: msg.sender,

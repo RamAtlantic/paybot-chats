@@ -3,7 +3,7 @@
 import Image from "next/image";
 import React, { useState } from "react";
 import { MessageStatus, Room, UnifiedMessage, User } from "@/types/chat";
-import { isOwnMessage } from "@/lib/utils";
+import { esMensajeDeImagen, isOwnMessage } from "@/lib/utils";
 import { SettingsData } from "@/types/settings";
 import { X } from "lucide-react";
 import MessageActions from "./chat/message-actions";
@@ -128,10 +128,7 @@ export default function Messages({
                       {settings?.displayName || ""}
                     </p>
                   )}
-                  {message.type === "image" ||
-                  message.content.startsWith(
-                    process.env.NEXT_PUBLIC_PUBLIC_CDN_URL || ""
-                  ) ? (
+                  {esMensajeDeImagen(message) ? (
                     <div className="mt-1">
                       <Image
                         src={message.content}

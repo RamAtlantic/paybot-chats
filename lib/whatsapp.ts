@@ -1,7 +1,7 @@
 // Armado del link a WhatsApp con el número que está cargado en Ajustes, y la
 // regla que decide cuándo el jugador puede verlo.
 
-import { isOwnMessage } from "./utils"
+import { esMensajeDeImagen, isOwnMessage } from "./utils"
 import type { Room, UnifiedMessage } from "@/types/chat"
 
 /**
@@ -73,7 +73,7 @@ export function tieneCuentaEntregada(room?: Room | null): boolean {
 export function hayComprobante(messages?: UnifiedMessage[] | null): boolean {
   return (messages ?? []).some(
     (mensaje) =>
-      mensaje.type === "image" && isOwnMessage(mensaje, mensaje.phone ?? null, false)
+      esMensajeDeImagen(mensaje) && isOwnMessage(mensaje, mensaje.phone ?? null, false)
   )
 }
 
